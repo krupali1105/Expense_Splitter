@@ -278,8 +278,61 @@ public class GroupDetailsActivity extends AppCompatActivity {
             return;
         }
 
-        // Send balance reminders to all members
-        smsHelper.sendBalanceReminder(members);
-        Toast.makeText(this, "Balance reminders sent to all members", Toast.LENGTH_SHORT).show();
+        // Show confirmation dialog with phone numbers
+        showSendInvoiceConfirmationDialog(members);
+    }
+    
+    private void showSendInvoiceConfirmationDialog(List<Member> members) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_send_invoice_confirmation, null);
+        builder.setView(dialogView);
+        
+        // Initialize views
+        androidx.recyclerview.widget.RecyclerView recyclerViewPhoneNumbers = dialogView.findViewById(R.id.recyclerViewPhoneNumbers);
+        com.google.android.material.button.MaterialButton btnCancel = dialogView.findViewById(R.id.btnCancel);
+        com.google.android.material.button.MaterialButton btnConfirmSend = dialogView.findViewById(R.id.btnConfirmSend);
+        
+        // Setup phone numbers list
+        com.example.expensetracker.adapters.PhoneNumberAdapter phoneNumberAdapter = 
+            new com.example.expensetracker.adapters.PhoneNumberAdapter(this, members);
+        recyclerViewPhoneNumbers.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(this));
+        recyclerViewPhoneNumbers.setAdapter(phoneNumberAdapter);
+        
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnConfirmSend.setOnClickListener(v -> {
+            dialog.dismiss();
+            sendRemindersToMembers(members);
+        });
+        
+        dialog.show();
+    }
+    
+    private void sendRemindersToMembers(List<Member> members) {
+        if (!smsHelper.hasSMSPermission()) {
+            Toast.makeText(this, "SMS permission not granted. Please enable SMS permission in app settings.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        
+        int sentCount = 0;
+        int totalMembers = 0;
+        
+        for (Member member : members) {
+            totalMembers++;
+            if (member.getPhoneNumber() != null && !member.getPhoneNumber().trim().isEmpty()) {
+                // Send reminder to this specific member
+                java.util.List<Member> singleMemberList = new java.util.ArrayList<>();
+                singleMemberList.add(member);
+                smsHelper.sendBalanceReminder(singleMemberList);
+                sentCount++;
+            }
+        }
+        
+        if (sentCount > 0) {
+            Toast.makeText(this, "Balance reminders sent to " + sentCount + " out of " + totalMembers + " members", Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(this, "No valid phone numbers found. Please add phone numbers to members first.", Toast.LENGTH_LONG).show();
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.example.expensetracker;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -47,7 +48,7 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
     @Override
     protected void onResume() {
         super.onResume();
-        loadSettlements();
+        // loadSettlements();
     }
 
     private void initializeViews() {
@@ -84,16 +85,35 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
     }
 
     private void loadSettlements() {
-        // First recalculate balances
-        databaseHelper.recalculateAllBalancesForGroup(groupId);
-        
+        Log.d("SettlementActivity", "=== LOADING SETTLEMENTS ===");
         settlements.clear();
-        List<Member> members = databaseHelper.getMembersForGroup(groupId);
         
-        if (members != null && !members.isEmpty()) {
-            // Create settlement suggestions
-            List<Settlement> settlementSuggestions = calculateSettlements(members);
-            settlements.addAll(settlementSuggestions);
+        // Load existing settlements from database WITHOUT recalculation
+        List<Settlement> existingSettlements = databaseHelper.getSettlementsForGroup(groupId);
+        Log.d("SettlementActivity", "Found " + (existingSettlements != null ? existingSettlements.size() : 0) + " existing settlements in database");
+        
+        if (existingSettlements != null && !existingSettlements.isEmpty()) {
+            settlements.addAll(existingSettlements);
+            Log.d("SettlementActivity", "Loaded " + existingSettlements.size() + " existing settlements from database");
+            
+            // Check if we need to generate new unsettled settlements
+            boolean hasUnsettledSettlements = false;
+            for (Settlement settlement : existingSettlements) {
+                if (!settlement.isSettled()) {
+                    hasUnsettledSettlements = true;
+                    break;
+                }
+            }
+            
+            // Only generate new settlements if no unsettled ones exist
+            if (!hasUnsettledSettlements) {
+                Log.d("SettlementActivity", "No unsettled settlements found, generating new ones");
+                generateNewSettlements();
+            }
+        } else {
+            // If no existing settlements, calculate new ones
+            Log.d("SettlementActivity", "No existing settlements found, generating new ones");
+            generateNewSettlements();
         }
         
         settlementAdapter.updateSettlements(settlements);
@@ -107,47 +127,91 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
             emptyStateLayout.setVisibility(View.GONE);
         }
     }
+    
+    private void generateNewSettlements() {
+        Log.d("SettlementActivity", "=== GENERATING NEW SETTLEMENTS ===");
+        List<Member> members = databaseHelper.getMembersForGroup(groupId);
+        if (members != null && !members.isEmpty()) {
+            List<Settlement> settlementSuggestions = calculateSettlements(members);
+            Log.d("SettlementActivity", "Calculated " + settlementSuggestions.size() + " new settlements");
+            
+            // Save new settlements to database first
+            for (Settlement settlement : settlementSuggestions) {
+                long result = databaseHelper.addSettlement(settlement, groupId);
+                Log.d("SettlementActivity", "Saved settlement to DB: " + settlement.getFromMember() + " -> " + settlement.getToMember() + " $" + settlement.getAmount() + " (ID: " + result + ")");
+            }
+            
+            // Then add them to the current list
+            settlements.addAll(settlementSuggestions);
+            Log.d("SettlementActivity", "Added " + settlementSuggestions.size() + " settlements to list. Total settlements: " + settlements.size());
+        }
+        Log.d("SettlementActivity", "=== NEW SETTLEMENTS GENERATED ===");
+    }
 
     private List<Settlement> calculateSettlements(List<Member> members) {
         List<Settlement> settlements = new ArrayList<>();
         
-        // Separate members into those who owe money and those who should get money
+        // Create working copies of balances to avoid modifying original data
+        List<Member> workingMembers = new ArrayList<>();
+        for (Member member : members) {
+            Member workingMember = new Member();
+            workingMember.setMemberId(member.getMemberId());
+            workingMember.setMemberName(member.getMemberName());
+            workingMember.setBalance(member.getBalance());
+            workingMembers.add(workingMember);
+        }
+        
+        // Separate members into debtors and creditors
         List<Member> debtors = new ArrayList<>();
         List<Member> creditors = new ArrayList<>();
         
-        for (Member member : members) {
-            if (member.getBalance() > 0) {
-                debtors.add(member); // People who owe money
-            } else if (member.getBalance() < 0) {
-                creditors.add(member); // People who should get money
+        for (Member member : workingMembers) {
+            if (member.getBalance() > 0.01) { // Use small threshold to avoid floating point issues
+                debtors.add(member);
+            } else if (member.getBalance() < -0.01) {
+                creditors.add(member);
             }
         }
         
-        // Create settlement suggestions
+        // Sort debtors by balance (highest debt first)
+        debtors.sort((a, b) -> Double.compare(b.getBalance(), a.getBalance()));
+        
+        // Sort creditors by balance (highest credit first)
+        creditors.sort((a, b) -> Double.compare(Math.abs(a.getBalance()), Math.abs(b.getBalance())));
+        
+        // Create settlements using a more efficient algorithm
         for (Member debtor : debtors) {
-            double debtAmount = debtor.getBalance();
+            double remainingDebt = debtor.getBalance();
+            
+            if (remainingDebt <= 0.01) continue;
             
             for (Member creditor : creditors) {
-                double creditAmount = Math.abs(creditor.getBalance());
+                double remainingCredit = Math.abs(creditor.getBalance());
                 
-                if (debtAmount > 0 && creditAmount > 0) {
-                    double settlementAmount = Math.min(debtAmount, creditAmount);
-                    
+                if (remainingCredit <= 0.01 || remainingDebt <= 0.01) continue;
+                
+                double settlementAmount = Math.min(remainingDebt, remainingCredit);
+                
+                if (settlementAmount > 0.01) { // Only create settlement if amount is meaningful
                     Settlement settlement = new Settlement();
                     settlement.setFromMember(debtor.getMemberName());
                     settlement.setToMember(creditor.getMemberName());
                     settlement.setAmount(settlementAmount);
                     settlement.setFromMemberId(debtor.getMemberId());
                     settlement.setToMemberId(creditor.getMemberId());
+                    settlement.setSettled(false);
                     
                     settlements.add(settlement);
                     
-                    debtAmount -= settlementAmount;
+                    // Update working balances
+                    remainingDebt -= settlementAmount;
+                    debtor.setBalance(remainingDebt);
                     creditor.setBalance(creditor.getBalance() + settlementAmount);
                 }
             }
         }
         
+        Log.d("SettlementActivity", "Generated " + settlements.size() + " settlements");
         return settlements;
     }
 
@@ -155,14 +219,17 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
         // Debug: Show current state before recalculation
         databaseHelper.debugBalanceCalculation(groupId);
         
-        // Recalculate balances
+        // Recalculate balances but preserve settled settlements
         databaseHelper.recalculateAllBalancesForGroup(groupId);
+        
+        // Only remove unsettled settlements and regenerate them
+        databaseHelper.clearUnsettledSettlementsForGroup(groupId);
         
         // Debug: Show state after recalculation
         databaseHelper.debugBalanceCalculation(groupId);
         
         loadSettlements();
-        Toast.makeText(this, "Balances recalculated", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Balances recalculated (preserving settled settlements)", Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -177,12 +244,29 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
                        settlement.getToMember() + " $" + String.format("%.2f", settlement.getAmount()) + 
                        "\n\nMark this settlement as completed?")
             .setPositiveButton("Mark as Settled", (dialog, which) -> {
-                // Here you would implement the settlement logic
-                // For now, just show a success message
-                Toast.makeText(this, "Settlement marked as completed", Toast.LENGTH_SHORT).show();
-                loadSettlements(); // Refresh the list
+                Log.d("SettlementActivity", "Marking settlement as settled: " + settlement.getFromMember() + " -> " + settlement.getToMember() + " $" + settlement.getAmount());
+                
+                // Update settlement status in database
+                boolean updated = databaseHelper.updateSettlementStatus(
+                    groupId, 
+                    settlement.getFromMember(), 
+                    settlement.getToMember(), 
+                    settlement.getAmount(), 
+                    true
+                );
+                
+                if (updated) {
+                    Log.d("SettlementActivity", "Settlement marked as completed successfully");
+                    Toast.makeText(this, "Settlement marked as completed. Member balances have been updated.", Toast.LENGTH_LONG).show();
+                    // Refresh settlements to show updated status
+                    loadSettlements();
+                } else {
+                    Log.e("SettlementActivity", "Failed to update settlement: " + settlement.getFromMember() + " -> " + settlement.getToMember() + " $" + settlement.getAmount());
+                    Toast.makeText(this, "Failed to update settlement. Check logs for details.", Toast.LENGTH_LONG).show();
+                }
             })
             .setNegativeButton("Cancel", null)
             .show();
     }
 }
+

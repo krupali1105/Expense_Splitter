@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white">
+    android:background="?attr/android:colorBackground">
 
     <!-- Balances RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
@@ -36,13 +36,13 @@
             android:layout_height="80dp"
             android:layout_marginBottom="16dp"
             android:src="@android:drawable/ic_menu_agenda"
-            app:tint="@color/gray" />
+            app:tint="?attr/colorOnSurfaceVariant" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="No members yet"
-            android:textColor="@color/gray"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="18sp" />
 
         <TextView
@@ -50,7 +50,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Add expenses to see balances"
-            android:textColor="@color/gray"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="14sp" />
 
     </LinearLayout>

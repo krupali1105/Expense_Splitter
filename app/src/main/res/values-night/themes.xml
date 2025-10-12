@@ -13,5 +13,10 @@
         <item name="colorOnSurface">@color/text_primary_dark</item>
         <item name="colorSurfaceVariant">@color/card_background_dark</item>
         <item name="colorOnSurfaceVariant">@color/text_secondary_dark</item>
+        <item name="colorError">@color/red</item>
+        <item name="colorOnError">@color/white</item>
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:textColorPrimary">@color/text_primary_dark</item>
+        <item name="android:textColorSecondary">@color/text_secondary_dark</item>
     </style>
 </resources>

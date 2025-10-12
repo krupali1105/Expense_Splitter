@@ -16,6 +16,7 @@ import com.example.expensetracker.R;
 import com.example.expensetracker.adapters.BalanceAdapter;
 import com.example.expensetracker.database.DatabaseHelper;
 import com.example.expensetracker.models.Member;
+import com.example.expensetracker.utils.SMSHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
     private DatabaseHelper databaseHelper;
     private List<Member> members;
     private int groupId;
+    private SMSHelper smsHelper;
 
     public static BalancesFragment newInstance(int groupId) {
         BalancesFragment fragment = new BalancesFragment();
@@ -73,6 +75,7 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
 
     private void initializeDatabase() {
         databaseHelper = new DatabaseHelper(getContext());
+        smsHelper = new SMSHelper(getContext());
     }
 
     private void setupRecyclerView() {
@@ -88,13 +91,13 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
     private void loadBalances() {
         try {
             // Debug: Show current state before recalculation
-            databaseHelper.debugBalanceCalculation(groupId);
+            // databaseHelper.debugBalanceCalculation(groupId);
             
-            // This is the only call you need now to recalculate everything
-            databaseHelper.recalculateAllBalancesForGroup(groupId);
+            // // This is the only call you need now to recalculate everything
+            // databaseHelper.recalculateAllBalancesForGroup(groupId);
             
-            // Debug: Show state after recalculation
-            databaseHelper.debugBalanceCalculation(groupId);
+            // // Debug: Show state after recalculation
+            // databaseHelper.debugBalanceCalculation(groupId);
 
             members.clear();
             List<Member> groupMembers = databaseHelper.getMembersForGroup(groupId);
@@ -152,8 +155,7 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
         btnClose.setOnClickListener(v -> dialog.dismiss());
         btnSendReminder.setOnClickListener(v -> {
             dialog.dismiss();
-            // TODO: Implement send reminder functionality
-            android.widget.Toast.makeText(getContext(), "Reminder sent to " + member.getMemberName(), android.widget.Toast.LENGTH_SHORT).show();
+            sendReminderToMember(member);
         });
         
         dialog.show();
@@ -190,5 +192,25 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
             recyclerView.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(getContext()));
             recyclerView.setAdapter(adapter);
         }
+    }
+    
+    private void sendReminderToMember(Member member) {
+        if (!smsHelper.hasSMSPermission()) {
+            android.widget.Toast.makeText(getContext(), "SMS permission not granted. Please enable SMS permission in app settings.", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        
+        if (member.getPhoneNumber() == null || member.getPhoneNumber().trim().isEmpty()) {
+            android.widget.Toast.makeText(getContext(), "No phone number available for " + member.getMemberName(), android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        
+        // Create a list with just this member for the SMS helper
+        java.util.List<Member> singleMemberList = new java.util.ArrayList<>();
+        singleMemberList.add(member);
+        
+        // Send reminder to this specific member
+        smsHelper.sendBalanceReminder(singleMemberList);
+        android.widget.Toast.makeText(getContext(), "Balance reminder sent to " + member.getMemberName() + " at " + member.getPhoneNumber(), android.widget.Toast.LENGTH_LONG).show();
     }
 }
