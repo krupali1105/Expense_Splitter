@@ -48,7 +48,7 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
     @Override
     protected void onResume() {
         super.onResume();
-        loadSettlements();
+        // loadSettlements();
     }
 
     private void initializeViews() {
@@ -88,37 +88,27 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
         Log.d("SettlementActivity", "=== LOADING SETTLEMENTS ===");
         settlements.clear();
         
-        // Load existing settlements from database
+        // Load existing settlements from database WITHOUT recalculation
         List<Settlement> existingSettlements = databaseHelper.getSettlementsForGroup(groupId);
         Log.d("SettlementActivity", "Found " + (existingSettlements != null ? existingSettlements.size() : 0) + " existing settlements in database");
         
         if (existingSettlements != null && !existingSettlements.isEmpty()) {
-            // Add all existing settlements to the list
             settlements.addAll(existingSettlements);
             Log.d("SettlementActivity", "Loaded " + existingSettlements.size() + " existing settlements from database");
             
             // Check if we need to generate new unsettled settlements
             boolean hasUnsettledSettlements = false;
-            int settledCount = 0;
-            int unsettledCount = 0;
-            
             for (Settlement settlement : existingSettlements) {
-                if (settlement.isSettled()) {
-                    settledCount++;
-                } else {
-                    unsettledCount++;
+                if (!settlement.isSettled()) {
                     hasUnsettledSettlements = true;
+                    break;
                 }
             }
             
-            Log.d("SettlementActivity", "Settlement status: " + settledCount + " settled, " + unsettledCount + " unsettled");
-            
-            // If no unsettled settlements exist, generate new ones
+            // Only generate new settlements if no unsettled ones exist
             if (!hasUnsettledSettlements) {
                 Log.d("SettlementActivity", "No unsettled settlements found, generating new ones");
                 generateNewSettlements();
-            } else {
-                Log.d("SettlementActivity", "Found unsettled settlements, not generating new ones");
             }
         } else {
             // If no existing settlements, calculate new ones
@@ -126,7 +116,6 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
             generateNewSettlements();
         }
         
-        Log.d("SettlementActivity", "Total settlements in list: " + settlements.size());
         settlementAdapter.updateSettlements(settlements);
         
         // Update UI based on data
@@ -137,8 +126,6 @@ public class SettlementActivity extends AppCompatActivity implements SettlementA
             recyclerViewSettlements.setVisibility(View.VISIBLE);
             emptyStateLayout.setVisibility(View.GONE);
         }
-        
-        Log.d("SettlementActivity", "=== SETTLEMENTS LOADED ===");
     }
     
     private void generateNewSettlements() {

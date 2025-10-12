@@ -19,6 +19,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "DatabaseHelper";
     private static final String DATABASE_NAME = "expense_tracker.db";
     private static final int DATABASE_VERSION = 4;
+    
+    // Utility method to round values to 2 decimal places
+    private double roundToTwoDecimals(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
 
     // Table names
     private static final String TABLE_GROUPS = "groups";
@@ -512,10 +517,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         cursor.close();
                         
                         ContentValues payerValues = new ContentValues();
-                        payerValues.put(COLUMN_TOTAL_OWING, currentOwing + payerGetsBack);
+                        double newTotalOwing = roundToTwoDecimals(currentOwing + payerGetsBack);
+                        payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
                         int updateCount = db.update(TABLE_MEMBERS, payerValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
                                 new String[]{String.valueOf(groupId), participant});
-                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + (currentOwing + payerGetsBack) + " (rows affected: " + updateCount + ")");
+                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing + " (rows affected: " + updateCount + ")");
                     } else {
                         // Other participants owe money
                         Log.d(TAG, "Participant " + participant + " owes: " + amount);
@@ -531,17 +537,32 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         cursor.close();
                         
                         ContentValues participantValues = new ContentValues();
-                        participantValues.put(COLUMN_TOTAL_OWED, currentOwed + amount);
+                        double newTotalOwed = roundToTwoDecimals(currentOwed + amount);
+                        participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
                         int updateCount = db.update(TABLE_MEMBERS, participantValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
                                 new String[]{String.valueOf(groupId), participant});
-                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + (currentOwed + amount) + " (rows affected: " + updateCount + ")");
+                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed + " (rows affected: " + updateCount + ")");
                     }
                 }
             }
             
-            // Calculate final balances
-            String updateBalanceQuery = "UPDATE " + TABLE_MEMBERS + " SET " + COLUMN_BALANCE + " = " + COLUMN_TOTAL_OWED + " - " + COLUMN_TOTAL_OWING + " WHERE " + COLUMN_GROUP_ID + "=?";
-            db.execSQL(updateBalanceQuery, new String[]{String.valueOf(groupId)});
+            // Calculate final balances with proper rounding
+            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
+                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
+                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            
+            while (balanceCursor.moveToNext()) {
+                int memberId = balanceCursor.getInt(0);
+                double totalOwed = balanceCursor.getDouble(1);
+                double totalOwing = balanceCursor.getDouble(2);
+                double balance = roundToTwoDecimals(totalOwed - totalOwing);
+                
+                ContentValues balanceValues = new ContentValues();
+                balanceValues.put(COLUMN_BALANCE, balance);
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
+                        new String[]{String.valueOf(memberId)});
+            }
+            balanceCursor.close();
             
             // Log final balances
             Cursor finalCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
@@ -676,29 +697,45 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
                         // Update payer's total_owing (money they should get back)
                         ContentValues payerValues = new ContentValues();
-                        payerValues.put(COLUMN_TOTAL_OWING, currentOwing + payerGetsBack);
+                        double newTotalOwing = roundToTwoDecimals(currentOwing + payerGetsBack);
+                        payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
                         int updateCount = db.update(TABLE_MEMBERS, payerValues, 
                                 COLUMN_MEMBER_ID + "=?", 
                                 new String[]{String.valueOf(memberId)});
-                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + (currentOwing + payerGetsBack) + " (rows: " + updateCount + ")");
+                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing + " (rows: " + updateCount + ")");
                     } else {
                         // Other participants owe their share
                         Log.d(TAG, "Participant " + participant + " owes: " + share);
 
                         // Update participant's total_owed (money they owe)
                         ContentValues participantValues = new ContentValues();
-                        participantValues.put(COLUMN_TOTAL_OWED, currentOwed + share);
+                        double newTotalOwed = roundToTwoDecimals(currentOwed + share);
+                        participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
                         int updateCount = db.update(TABLE_MEMBERS, participantValues, 
                                 COLUMN_MEMBER_ID + "=?", 
                                 new String[]{String.valueOf(memberId)});
-                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + (currentOwed + share) + " (rows: " + updateCount + ")");
+                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed + " (rows: " + updateCount + ")");
                     }
                 }
             }
 
-            // 4. Calculate final balances (total_owed - total_owing)
-            String updateBalanceQuery = "UPDATE " + TABLE_MEMBERS + " SET " + COLUMN_BALANCE + " = " + COLUMN_TOTAL_OWED + " - " + COLUMN_TOTAL_OWING + " WHERE " + COLUMN_GROUP_ID + "=?";
-            db.execSQL(updateBalanceQuery, new String[]{String.valueOf(groupId)});
+            // 4. Calculate final balances (total_owed - total_owing) with proper rounding
+            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
+                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
+                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            
+            while (balanceCursor.moveToNext()) {
+                int memberId = balanceCursor.getInt(0);
+                double totalOwed = balanceCursor.getDouble(1);
+                double totalOwing = balanceCursor.getDouble(2);
+                double balance = roundToTwoDecimals(totalOwed - totalOwing);
+                
+                ContentValues balanceValues = new ContentValues();
+                balanceValues.put(COLUMN_BALANCE, balance);
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
+                        new String[]{String.valueOf(memberId)});
+            }
+            balanceCursor.close();
 
             // 5. Log final results
             Cursor finalCursor = db.query(TABLE_MEMBERS, 
@@ -791,7 +828,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         cursor.close();
                         
                         ContentValues payerValues = new ContentValues();
-                        payerValues.put(COLUMN_TOTAL_OWING, currentOwing + (expense.getAmount() - amount));
+                        double newTotalOwing = roundToTwoDecimals(currentOwing + (expense.getAmount() - amount));
+                        payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
                         db.update(TABLE_MEMBERS, payerValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
                                 new String[]{String.valueOf(groupId), participant});
                     } else {
@@ -807,16 +845,31 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         cursor.close();
                         
                         ContentValues participantValues = new ContentValues();
-                        participantValues.put(COLUMN_TOTAL_OWED, currentOwed + amount);
+                        double newTotalOwed = roundToTwoDecimals(currentOwed + amount);
+                        participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
                         db.update(TABLE_MEMBERS, participantValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
                                 new String[]{String.valueOf(groupId), participant});
                     }
                 }
             }
             
-            // Calculate final balances
-            String updateBalanceQuery = "UPDATE " + TABLE_MEMBERS + " SET " + COLUMN_BALANCE + " = " + COLUMN_TOTAL_OWED + " - " + COLUMN_TOTAL_OWING + " WHERE " + COLUMN_GROUP_ID + "=?";
-            db.execSQL(updateBalanceQuery, new String[]{String.valueOf(groupId)});
+            // Calculate final balances with proper rounding
+            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
+                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
+                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            
+            while (balanceCursor.moveToNext()) {
+                int memberId = balanceCursor.getInt(0);
+                double totalOwed = balanceCursor.getDouble(1);
+                double totalOwing = balanceCursor.getDouble(2);
+                double balance = roundToTwoDecimals(totalOwed - totalOwing);
+                
+                ContentValues balanceValues = new ContentValues();
+                balanceValues.put(COLUMN_BALANCE, balance);
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
+                        new String[]{String.valueOf(memberId)});
+            }
+            balanceCursor.close();
             
             db.close();
         } catch (Exception e) {
@@ -982,20 +1035,22 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             
             // Update balances after settlement
             // fromMember reduces their debt (total_owed decreases by settlement amount)
-            double newFromMemberOwed = Math.max(0, fromMemberOwed - amount);
+            double newFromMemberOwed = roundToTwoDecimals(Math.max(0, fromMemberOwed - amount));
             ContentValues fromValues = new ContentValues();
             fromValues.put(COLUMN_TOTAL_OWED, newFromMemberOwed);
-            fromValues.put(COLUMN_BALANCE, newFromMemberOwed - fromMemberOwing);
+            double newFromBalance = roundToTwoDecimals(newFromMemberOwed - fromMemberOwing);
+            fromValues.put(COLUMN_BALANCE, newFromBalance);
             
             int fromUpdateResult = db.update(TABLE_MEMBERS, fromValues, COLUMN_MEMBER_ID + "=?", 
                     new String[]{String.valueOf(fromMemberId)});
             Log.d(TAG, "Updated " + fromMember + " total_owed: " + fromMemberOwed + " -> " + newFromMemberOwed + " (rows affected: " + fromUpdateResult + ")");
             
             // toMember reduces their credit (total_owing decreases by settlement amount)
-            double newToMemberOwing = Math.max(0, toMemberOwing - amount);
+            double newToMemberOwing = roundToTwoDecimals(Math.max(0, toMemberOwing - amount));
             ContentValues toValues = new ContentValues();
             toValues.put(COLUMN_TOTAL_OWING, newToMemberOwing);
-            toValues.put(COLUMN_BALANCE, toMemberOwed - newToMemberOwing);
+            double newToBalance = roundToTwoDecimals(toMemberOwed - newToMemberOwing);
+            toValues.put(COLUMN_BALANCE, newToBalance);
             
             int toUpdateResult = db.update(TABLE_MEMBERS, toValues, COLUMN_MEMBER_ID + "=?", 
                     new String[]{String.valueOf(toMemberId)});

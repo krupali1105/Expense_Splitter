@@ -91,13 +91,13 @@ public class BalancesFragment extends Fragment implements BalanceAdapter.OnMembe
     private void loadBalances() {
         try {
             // Debug: Show current state before recalculation
-            databaseHelper.debugBalanceCalculation(groupId);
+            // databaseHelper.debugBalanceCalculation(groupId);
             
-            // This is the only call you need now to recalculate everything
-            databaseHelper.recalculateAllBalancesForGroup(groupId);
+            // // This is the only call you need now to recalculate everything
+            // databaseHelper.recalculateAllBalancesForGroup(groupId);
             
-            // Debug: Show state after recalculation
-            databaseHelper.debugBalanceCalculation(groupId);
+            // // Debug: Show state after recalculation
+            // databaseHelper.debugBalanceCalculation(groupId);
 
             members.clear();
             List<Member> groupMembers = databaseHelper.getMembersForGroup(groupId);
