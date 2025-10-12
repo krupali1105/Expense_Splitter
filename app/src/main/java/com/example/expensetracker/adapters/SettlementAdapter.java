@@ -93,16 +93,16 @@ public class SettlementAdapter extends RecyclerView.Adapter<SettlementAdapter.Se
             
             if (settlement.isSettled()) {
                 tvStatus.setText("Settled");
-                tvStatus.setTextColor(context.getResources().getColor(R.color.green));
+                tvStatus.setTextColor(context.getResources().getColor(R.color.green, context.getTheme()));
                 btnMarkSettled.setText("Settled");
-                btnMarkSettled.setBackgroundColor(context.getResources().getColor(R.color.green));
-                btnMarkSettled.setTextColor(context.getResources().getColor(R.color.white));
+                btnMarkSettled.setBackgroundColor(context.getResources().getColor(R.color.green, context.getTheme()));
+                btnMarkSettled.setTextColor(context.getResources().getColor(R.color.white, context.getTheme()));
             } else {
                 tvStatus.setText("Pending");
-                tvStatus.setTextColor(context.getResources().getColor(R.color.orange));
+                tvStatus.setTextColor(context.getResources().getColor(R.color.gray, context.getTheme()));
                 btnMarkSettled.setText("Mark as Settled");
-                btnMarkSettled.setBackgroundColor(context.getResources().getColor(R.color.purple_500));
-                btnMarkSettled.setTextColor(context.getResources().getColor(R.color.white));
+                btnMarkSettled.setBackgroundColor(context.getResources().getColor(R.color.purple_500, context.getTheme()));
+                btnMarkSettled.setTextColor(context.getResources().getColor(R.color.white, context.getTheme()));
             }
         }
     }

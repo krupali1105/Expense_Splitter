@@ -10,6 +10,7 @@ import android.util.Log;
 import com.example.expensetracker.models.Expense;
 import com.example.expensetracker.models.Group;
 import com.example.expensetracker.models.Member;
+import com.example.expensetracker.models.Settlement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,12 +18,13 @@ import java.util.List;
 public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "DatabaseHelper";
     private static final String DATABASE_NAME = "expense_tracker.db";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;
 
     // Table names
     private static final String TABLE_GROUPS = "groups";
     private static final String TABLE_EXPENSES = "expenses";
     private static final String TABLE_MEMBERS = "members";
+    private static final String TABLE_SETTLEMENTS = "settlements";
 
     // Groups table columns
     private static final String COLUMN_GROUP_ID = "group_id";
@@ -52,6 +54,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_TOTAL_OWED = "total_owed";
     private static final String COLUMN_TOTAL_OWING = "total_owing";
     private static final String COLUMN_BALANCE = "balance";
+
+    // Settlements table columns
+    private static final String COLUMN_SETTLEMENT_ID = "settlement_id";
+    private static final String COLUMN_FROM_MEMBER = "from_member";
+    private static final String COLUMN_TO_MEMBER = "to_member";
+    private static final String COLUMN_FROM_MEMBER_ID = "from_member_id";
+    private static final String COLUMN_TO_MEMBER_ID = "to_member_id";
+    private static final String COLUMN_SETTLEMENT_AMOUNT = "settlement_amount";
+    private static final String COLUMN_IS_SETTLED = "is_settled";
+    private static final String COLUMN_SETTLEMENT_DATE = "settlement_date";
 
     // Create table statements
     private static final String CREATE_TABLE_GROUPS = "CREATE TABLE " + TABLE_GROUPS + "("
@@ -90,6 +102,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             + "FOREIGN KEY(" + COLUMN_GROUP_ID + ") REFERENCES " + TABLE_GROUPS + "(" + COLUMN_GROUP_ID + ")"
             + ")";
 
+    private static final String CREATE_TABLE_SETTLEMENTS = "CREATE TABLE " + TABLE_SETTLEMENTS + "("
+            + COLUMN_SETTLEMENT_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
+            + COLUMN_GROUP_ID + " INTEGER NOT NULL,"
+            + COLUMN_FROM_MEMBER + " TEXT NOT NULL,"
+            + COLUMN_TO_MEMBER + " TEXT NOT NULL,"
+            + COLUMN_FROM_MEMBER_ID + " INTEGER NOT NULL,"
+            + COLUMN_TO_MEMBER_ID + " INTEGER NOT NULL,"
+            + COLUMN_SETTLEMENT_AMOUNT + " REAL NOT NULL,"
+            + COLUMN_IS_SETTLED + " INTEGER DEFAULT 0,"
+            + COLUMN_SETTLEMENT_DATE + " TEXT,"
+            + "FOREIGN KEY(" + COLUMN_GROUP_ID + ") REFERENCES " + TABLE_GROUPS + "(" + COLUMN_GROUP_ID + ")"
+            + ")";
+
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -99,6 +124,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL(CREATE_TABLE_GROUPS);
         db.execSQL(CREATE_TABLE_EXPENSES);
         db.execSQL(CREATE_TABLE_MEMBERS);
+        db.execSQL(CREATE_TABLE_SETTLEMENTS);
         Log.d(TAG, "Database tables created");
     }
 
@@ -114,6 +140,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 3) {
             // Add phone number column to members table
             db.execSQL("ALTER TABLE " + TABLE_MEMBERS + " ADD COLUMN " + COLUMN_PHONE_NUMBER + " TEXT");
+        }
+        if (oldVersion < 4) {
+            // Create settlements table
+            db.execSQL(CREATE_TABLE_SETTLEMENTS);
         }
     }
 
@@ -261,7 +291,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             } while (cursor.moveToNext());
         }
         cursor.close();
-        db.close();
+//        db.close();
         return expenses;
     }
 
@@ -833,5 +863,187 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             Log.e(TAG, "Debug error: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    // Settlement CRUD operations
+    public long addSettlement(Settlement settlement, int groupId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        
+        values.put(COLUMN_GROUP_ID, groupId);
+        values.put(COLUMN_FROM_MEMBER, settlement.getFromMember());
+        values.put(COLUMN_TO_MEMBER, settlement.getToMember());
+        values.put(COLUMN_FROM_MEMBER_ID, settlement.getFromMemberId());
+        values.put(COLUMN_TO_MEMBER_ID, settlement.getToMemberId());
+        values.put(COLUMN_SETTLEMENT_AMOUNT, settlement.getAmount());
+        values.put(COLUMN_IS_SETTLED, settlement.isSettled() ? 1 : 0);
+        values.put(COLUMN_SETTLEMENT_DATE, settlement.getSettlementDate());
+        
+        long result = db.insert(TABLE_SETTLEMENTS, null, values);
+        db.close();
+        return result;
+    }
+    
+    public List<Settlement> getSettlementsForGroup(int groupId) {
+        List<Settlement> settlements = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        
+        Cursor cursor = db.query(TABLE_SETTLEMENTS, null, COLUMN_GROUP_ID + "=?", 
+                new String[]{String.valueOf(groupId)}, null, null, COLUMN_SETTLEMENT_ID + " ASC");
+        
+        if (cursor.moveToFirst()) {
+            do {
+                Settlement settlement = new Settlement();
+                settlement.setFromMember(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FROM_MEMBER)));
+                settlement.setToMember(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TO_MEMBER)));
+                settlement.setFromMemberId(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_FROM_MEMBER_ID)));
+                settlement.setToMemberId(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_TO_MEMBER_ID)));
+                settlement.setAmount(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_SETTLEMENT_AMOUNT)));
+                settlement.setSettled(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SETTLED)) == 1);
+                settlement.setSettlementDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SETTLEMENT_DATE)));
+                
+                settlements.add(settlement);
+            } while (cursor.moveToNext());
+        }
+        
+        cursor.close();
+        db.close();
+        return settlements;
+    }
+    
+    public boolean updateSettlementStatus(int groupId, String fromMember, String toMember, double amount, boolean isSettled) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_IS_SETTLED, isSettled ? 1 : 0);
+        if (isSettled) {
+            values.put(COLUMN_SETTLEMENT_DATE, new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date()));
+        }
+        
+        // Use a range for amount comparison to handle floating point precision
+        String whereClause = COLUMN_GROUP_ID + "=? AND " + COLUMN_FROM_MEMBER + "=? AND " + 
+                           COLUMN_TO_MEMBER + "=? AND " + COLUMN_SETTLEMENT_AMOUNT + " BETWEEN ? AND ?";
+        String[] whereArgs = {String.valueOf(groupId), fromMember, toMember, 
+                            String.valueOf(amount - 0.01), String.valueOf(amount + 0.01)};
+        
+        Log.d(TAG, "Updating settlement: " + fromMember + " -> " + toMember + " $" + amount + " (settled=" + isSettled + ")");
+        Log.d(TAG, "Where clause: " + whereClause);
+        Log.d(TAG, "Where args: " + java.util.Arrays.toString(whereArgs));
+        
+        int result = db.update(TABLE_SETTLEMENTS, values, whereClause, whereArgs);
+        Log.d(TAG, "Update result: " + result + " rows affected");
+        
+        // If settlement is marked as complete, update member balances
+        if (isSettled && result > 0) {
+            updateBalancesAfterSettlement(db, groupId, fromMember, toMember, amount);
+        }
+        
+        db.close();
+        
+        return result > 0;
+    }
+    
+    private void updateBalancesAfterSettlement(SQLiteDatabase db, int groupId, String fromMember, String toMember, double amount) {
+        try {
+            Log.d(TAG, "=== UPDATING BALANCES AFTER SETTLEMENT ===");
+            Log.d(TAG, "Settlement: " + fromMember + " pays " + toMember + " $" + amount);
+            
+            // Get current balances for both members
+            Cursor fromMemberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
+                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
+                    new String[]{String.valueOf(groupId), fromMember}, null, null, null);
+            
+            int fromMemberId = -1;
+            double fromMemberOwed = 0, fromMemberOwing = 0, fromMemberBalance = 0;
+            if (fromMemberCursor.moveToFirst()) {
+                fromMemberId = fromMemberCursor.getInt(0);
+                fromMemberOwed = fromMemberCursor.getDouble(1);
+                fromMemberOwing = fromMemberCursor.getDouble(2);
+                fromMemberBalance = fromMemberCursor.getDouble(3);
+            }
+            fromMemberCursor.close();
+            
+            Cursor toMemberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
+                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
+                    new String[]{String.valueOf(groupId), toMember}, null, null, null);
+            
+            int toMemberId = -1;
+            double toMemberOwed = 0, toMemberOwing = 0, toMemberBalance = 0;
+            if (toMemberCursor.moveToFirst()) {
+                toMemberId = toMemberCursor.getInt(0);
+                toMemberOwed = toMemberCursor.getDouble(1);
+                toMemberOwing = toMemberCursor.getDouble(2);
+                toMemberBalance = toMemberCursor.getDouble(3);
+            }
+            toMemberCursor.close();
+            
+            Log.d(TAG, "Before settlement:");
+            Log.d(TAG, "  " + fromMember + " (ID:" + fromMemberId + "): owed=" + fromMemberOwed + ", owing=" + fromMemberOwing + ", balance=" + fromMemberBalance);
+            Log.d(TAG, "  " + toMember + " (ID:" + toMemberId + "): owed=" + toMemberOwed + ", owing=" + toMemberOwing + ", balance=" + toMemberBalance);
+            
+            // Update balances after settlement
+            // fromMember reduces their debt (total_owed decreases by settlement amount)
+            double newFromMemberOwed = Math.max(0, fromMemberOwed - amount);
+            ContentValues fromValues = new ContentValues();
+            fromValues.put(COLUMN_TOTAL_OWED, newFromMemberOwed);
+            fromValues.put(COLUMN_BALANCE, newFromMemberOwed - fromMemberOwing);
+            
+            int fromUpdateResult = db.update(TABLE_MEMBERS, fromValues, COLUMN_MEMBER_ID + "=?", 
+                    new String[]{String.valueOf(fromMemberId)});
+            Log.d(TAG, "Updated " + fromMember + " total_owed: " + fromMemberOwed + " -> " + newFromMemberOwed + " (rows affected: " + fromUpdateResult + ")");
+            
+            // toMember reduces their credit (total_owing decreases by settlement amount)
+            double newToMemberOwing = Math.max(0, toMemberOwing - amount);
+            ContentValues toValues = new ContentValues();
+            toValues.put(COLUMN_TOTAL_OWING, newToMemberOwing);
+            toValues.put(COLUMN_BALANCE, toMemberOwed - newToMemberOwing);
+            
+            int toUpdateResult = db.update(TABLE_MEMBERS, toValues, COLUMN_MEMBER_ID + "=?", 
+                    new String[]{String.valueOf(toMemberId)});
+            Log.d(TAG, "Updated " + toMember + " total_owing: " + toMemberOwing + " -> " + newToMemberOwing + " (rows affected: " + toUpdateResult + ")");
+            
+            // Verify the updates by reading back the values
+            Cursor verifyFromCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
+                    COLUMN_MEMBER_ID + "=?", new String[]{String.valueOf(fromMemberId)}, null, null, null);
+            if (verifyFromCursor.moveToFirst()) {
+                double finalFromOwed = verifyFromCursor.getDouble(0);
+                double finalFromOwing = verifyFromCursor.getDouble(1);
+                double finalFromBalance = verifyFromCursor.getDouble(2);
+                Log.d(TAG, "Final " + fromMember + ": owed=" + finalFromOwed + ", owing=" + finalFromOwing + ", balance=" + finalFromBalance);
+            }
+            verifyFromCursor.close();
+            
+            Cursor verifyToCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
+                    COLUMN_MEMBER_ID + "=?", new String[]{String.valueOf(toMemberId)}, null, null, null);
+            if (verifyToCursor.moveToFirst()) {
+                double finalToOwed = verifyToCursor.getDouble(0);
+                double finalToOwing = verifyToCursor.getDouble(1);
+                double finalToBalance = verifyToCursor.getDouble(2);
+                Log.d(TAG, "Final " + toMember + ": owed=" + finalToOwed + ", owing=" + finalToOwing + ", balance=" + finalToBalance);
+            }
+            verifyToCursor.close();
+            
+            Log.d(TAG, "=== BALANCE UPDATE COMPLETED ===");
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating balances after settlement: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    public void clearSettlementsForGroup(int groupId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        db.delete(TABLE_SETTLEMENTS, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
+        db.close();
+    }
+    
+    public void clearUnsettledSettlementsForGroup(int groupId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        String whereClause = COLUMN_GROUP_ID + "=? AND " + COLUMN_IS_SETTLED + "=?";
+        String[] whereArgs = {String.valueOf(groupId), "0"}; // 0 means not settled (false)
+        
+        int deletedRows = db.delete(TABLE_SETTLEMENTS, whereClause, whereArgs);
+        Log.d(TAG, "Cleared " + deletedRows + " unsettled settlements for group " + groupId);
+        
+        db.close();
     }
 }

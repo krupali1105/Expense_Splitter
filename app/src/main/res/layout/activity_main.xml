@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white"
+    android:background="?attr/android:colorBackground"
     tools:context=".HomeActivity">
 
     <!-- Toolbar -->
@@ -13,20 +13,20 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@color/purple_500"
+        android:background="?attr/colorPrimary"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:title="Expense Tracker"
-        app:titleTextColor="@color/white" />
+        app:titleTextColor="?attr/colorOnPrimary" />
 
     <!-- Header -->
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/purple_500"
+        android:background="?attr/colorPrimary"
         android:orientation="vertical"
         android:padding="12dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -37,7 +37,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Your Groups"
-            android:textColor="@color/white"
+            android:textColor="?attr/colorOnPrimary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -53,7 +53,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Total Balance: $0.00"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnPrimary"
                 android:textSize="14sp" />
 
             <TextView
@@ -61,7 +61,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0 groups"
-                android:textColor="@color/white"
+                android:textColor="?attr/colorOnPrimary"
                 android:textSize="12sp" />
 
         </LinearLayout>
@@ -78,9 +78,11 @@
         android:src="@android:drawable/ic_input_add"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:tint="@color/white" />
+        app:tint="?attr/colorOnPrimary" />
 
     <!-- Groups RecyclerView -->
+
+    <!-- Empty State -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewGroups"
         android:layout_width="match_parent"
@@ -89,11 +91,12 @@
         android:padding="8dp"
         app:layout_constraintBottom_toTopOf="@+id/fabAddGroup"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/headerLayout"
+        app:layout_constraintVertical_bias="1.0"
         tools:listitem="@layout/item_group" />
 
-    <!-- Empty State -->
     <LinearLayout
         android:id="@+id/emptyStateLayout"
         android:layout_width="wrap_content"
@@ -111,13 +114,13 @@
             android:layout_height="80dp"
             android:layout_marginBottom="16dp"
             android:src="@android:drawable/ic_menu_agenda"
-            app:tint="@color/gray" />
+            app:tint="?attr/colorOnSurfaceVariant" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="No groups yet"
-            android:textColor="@color/gray"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="18sp" />
 
         <TextView
@@ -125,7 +128,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Tap the + button to create your first group"
-            android:textColor="@color/gray"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="14sp" />
 
     </LinearLayout>

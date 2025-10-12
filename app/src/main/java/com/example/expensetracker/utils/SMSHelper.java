@@ -27,8 +27,10 @@ public class SMSHelper {
     }
 
     public boolean hasSMSPermission() {
-        return ActivityCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) 
+        boolean hasPermission = ActivityCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) 
                 == PackageManager.PERMISSION_GRANTED;
+        Log.d(TAG, "SMS Permission granted: " + hasPermission);
+        return hasPermission;
     }
 
     public void sendInvoiceSMS(Expense expense, List<Member> members) {
@@ -99,11 +101,40 @@ public class SMSHelper {
 
     private void sendSMS(String phoneNumber, String message) {
         try {
-            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
-            Log.d(TAG, "SMS sent to " + phoneNumber);
+            // Clean and validate phone number
+            String cleanPhoneNumber = cleanPhoneNumber(phoneNumber);
+            if (cleanPhoneNumber == null || cleanPhoneNumber.isEmpty()) {
+                Log.e(TAG, "Invalid phone number: " + phoneNumber);
+                return;
+            }
+            
+            Log.d(TAG, "Attempting to send SMS to: " + cleanPhoneNumber);
+            Log.d(TAG, "Message: " + message);
+            
+            smsManager.sendTextMessage(cleanPhoneNumber, null, message, null, null);
+            Log.d(TAG, "SMS sent successfully to " + cleanPhoneNumber);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to send SMS to " + phoneNumber, e);
+            Log.e(TAG, "Failed to send SMS to " + phoneNumber + ": " + e.getMessage(), e);
         }
+    }
+    
+    private String cleanPhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Just trim whitespace and return as entered by user
+        String cleaned = phoneNumber.trim();
+        
+        // Basic validation - should have some digits
+        String digitsOnly = cleaned.replaceAll("[^\\d]", "");
+        if (digitsOnly.length() < 5) {
+            Log.e(TAG, "Phone number too short: " + phoneNumber + " -> " + cleaned);
+            return null;
+        }
+        
+        Log.d(TAG, "Phone number cleaned: " + phoneNumber + " -> " + cleaned);
+        return cleaned;
     }
 
     public void sendBalanceReminder(List<Member> members) {
