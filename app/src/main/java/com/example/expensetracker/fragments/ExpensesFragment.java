@@ -23,7 +23,7 @@ import java.util.List;
 
 public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpenseClickListener {
     private static final String ARG_GROUP_ID = "group_id";
-    
+
     private RecyclerView recyclerViewExpenses;
     private LinearLayout emptyStateLayout;
     private ExpenseAdapter expenseAdapter;
@@ -49,14 +49,15 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_expenses, container, false);
-        
+
         initializeViews(view);
         initializeDatabase();
         setupRecyclerView();
         loadExpenses();
-        
+
         return view;
     }
 
@@ -88,7 +89,7 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
         expenses.clear();
         expenses.addAll(databaseHelper.getExpensesForGroup(groupId));
         expenseAdapter.updateExpenses(expenses);
-        
+
         // Update UI based on data
         if (expenses.isEmpty()) {
             recyclerViewExpenses.setVisibility(View.GONE);
@@ -108,7 +109,7 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_expense_detail, null);
         builder.setView(dialogView);
-        
+
         // Initialize views
         android.widget.TextView tvExpenseName = dialogView.findViewById(R.id.tvExpenseName);
         android.widget.TextView tvAmount = dialogView.findViewById(R.id.tvAmount);
@@ -118,10 +119,12 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
         android.widget.TextView tvLocation = dialogView.findViewById(R.id.tvLocation);
         android.widget.TextView tvSplitType = dialogView.findViewById(R.id.tvSplitType);
         android.widget.TextView tvParticipants = dialogView.findViewById(R.id.tvParticipants);
-        androidx.recyclerview.widget.RecyclerView recyclerViewParticipants = dialogView.findViewById(R.id.recyclerViewParticipants);
+        androidx.recyclerview.widget.RecyclerView recyclerViewParticipants = dialogView
+                .findViewById(R.id.recyclerViewParticipants);
         com.google.android.material.button.MaterialButton btnClose = dialogView.findViewById(R.id.btnClose);
         com.google.android.material.button.MaterialButton btnEdit = dialogView.findViewById(R.id.btnEdit);
-        
+        com.google.android.material.button.MaterialButton btnDelete = dialogView.findViewById(R.id.btnDelete);
+
         // Set expense data
         tvExpenseName.setText(expense.getExpenseName());
         tvAmount.setText("$" + String.format("%.2f", expense.getAmount()));
@@ -129,42 +132,52 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
         tvDate.setText(expense.getDate());
         tvCategory.setText(expense.getCategory() != null ? expense.getCategory() : "General");
         tvLocation.setText(expense.getLocation() != null ? expense.getLocation() : "Not specified");
-        
+
         // Determine split type
         boolean isCustomSplit = expense.getParticipantAmounts() != null && !expense.getParticipantAmounts().isEmpty();
         tvSplitType.setText("Split Type: " + (isCustomSplit ? "Custom" : "Equal"));
         tvParticipants.setText("Participants: " + expense.getParticipants());
-        
+
         // Setup participant breakdown
         setupParticipantBreakdown(recyclerViewParticipants, expense);
-        
+
         android.app.AlertDialog dialog = builder.create();
-        
+
         btnClose.setOnClickListener(v -> dialog.dismiss());
+
         btnEdit.setOnClickListener(v -> {
             dialog.dismiss();
-            // TODO: Implement edit functionality
-            android.widget.Toast.makeText(getContext(), "Edit functionality coming soon!", android.widget.Toast.LENGTH_SHORT).show();
+            editExpense(expense);
         });
-        
+
+        btnDelete.setOnClickListener(v -> {
+            dialog.dismiss();
+            showDeleteConfirmationDialog(expense);
+        });
+
         dialog.show();
     }
 
     private void setupParticipantBreakdown(androidx.recyclerview.widget.RecyclerView recyclerView, Expense expense) {
         // Create participant breakdown data
         java.util.List<com.example.expensetracker.models.ParticipantBreakdown> participantBreakdowns = new java.util.ArrayList<>();
-        
-        String[] participants = expense.getParticipants().split(",");
+
+        // Handle both ", " and "," formats
+        String[] participants = expense.getParticipants().contains(", ")
+                ? expense.getParticipants().split(", ")
+                : expense.getParticipants().split(",");
         String[] participantAmounts = null;
-        
+
         if (expense.getParticipantAmounts() != null && !expense.getParticipantAmounts().isEmpty()) {
-            participantAmounts = expense.getParticipantAmounts().split(",");
+            participantAmounts = expense.getParticipantAmounts().contains(", ")
+                    ? expense.getParticipantAmounts().split(", ")
+                    : expense.getParticipantAmounts().split(",");
         }
-        
+
         for (int i = 0; i < participants.length; i++) {
             String participant = participants[i].trim();
             double amount;
-            
+
             if (participantAmounts != null && i < participantAmounts.length) {
                 try {
                     amount = Double.parseDouble(participantAmounts[i].trim());
@@ -174,19 +187,60 @@ public class ExpensesFragment extends Fragment implements ExpenseAdapter.OnExpen
             } else {
                 amount = expense.getAmount() / participants.length;
             }
-            
+
             double amountPaid = participant.equals(expense.getPayer()) ? expense.getAmount() : 0;
             double netBalance = amount - amountPaid;
-            
+
             participantBreakdowns.add(new com.example.expensetracker.models.ParticipantBreakdown(
-                participant, amountPaid, amount, netBalance
-            ));
+                    participant, amountPaid, amount, netBalance));
         }
-        
+
         // Setup adapter
-        com.example.expensetracker.adapters.ParticipantBreakdownAdapter adapter = 
-            new com.example.expensetracker.adapters.ParticipantBreakdownAdapter(getContext(), participantBreakdowns);
+        com.example.expensetracker.adapters.ParticipantBreakdownAdapter adapter = new com.example.expensetracker.adapters.ParticipantBreakdownAdapter(
+                getContext(), participantBreakdowns);
         recyclerView.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
+    }
+
+    private void editExpense(Expense expense) {
+        Intent intent = new Intent(getContext(), com.example.expensetracker.AddExpenseActivity.class);
+        intent.putExtra("group_id", groupId);
+        intent.putExtra("expense_id", expense.getExpenseId());
+        intent.putExtra("is_edit_mode", true);
+        startActivityForResult(intent, 100);
+    }
+
+    private void showDeleteConfirmationDialog(Expense expense) {
+        new android.app.AlertDialog.Builder(getContext())
+                .setTitle("Delete Expense")
+                .setMessage("Are you sure you want to delete \"" + expense.getExpenseName()
+                        + "\"? This action cannot be undone.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    deleteExpense(expense);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void deleteExpense(Expense expense) {
+        try {
+            databaseHelper.deleteExpense(expense.getExpenseId());
+            android.widget.Toast
+                    .makeText(getContext(), "Expense deleted successfully", android.widget.Toast.LENGTH_SHORT).show();
+            loadExpenses(); // Refresh the list
+        } catch (Exception e) {
+            e.printStackTrace();
+            android.widget.Toast.makeText(getContext(), "Error deleting expense: " + e.getMessage(),
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 100 && resultCode == android.app.Activity.RESULT_OK) {
+            // Refresh expenses list after edit
+            loadExpenses();
+        }
     }
 }

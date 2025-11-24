@@ -49,7 +49,10 @@ public class AddExpenseActivity extends AppCompatActivity {
     private int groupId;
     private String groupName;
     private Calendar selectedDate;
-    
+    private boolean isEditMode = false;
+    private int expenseId = -1;
+    private Expense currentExpense;
+
     // New UI components for expense splitting
     private RadioGroup radioGroupSplitType;
     private RadioButton radioEqual;
@@ -58,7 +61,8 @@ public class AddExpenseActivity extends AppCompatActivity {
     private LinearLayout layoutParticipants;
     private LinearLayout layoutCustomAmounts;
     private TextView tvSplitSummary;
-    
+    private TextView tvTitle;
+
     // Data
     private List<Member> members;
     private List<CheckBox> participantCheckBoxes;
@@ -75,6 +79,16 @@ public class AddExpenseActivity extends AppCompatActivity {
         setupClickListeners();
         loadGroupData();
         setupDatePicker();
+
+        // Check if we're in edit mode
+        Intent intent = getIntent();
+        if (intent.getBooleanExtra("is_edit_mode", false)) {
+            isEditMode = true;
+            expenseId = intent.getIntExtra("expense_id", -1);
+            if (expenseId != -1) {
+                loadExpenseData();
+            }
+        }
     }
 
     @Override
@@ -102,7 +116,7 @@ public class AddExpenseActivity extends AppCompatActivity {
         btnSaveExpense = findViewById(R.id.btnSaveExpense);
         btnBack = findViewById(R.id.btnBack);
         selectedDate = Calendar.getInstance();
-        
+
         // Initialize new UI components
         radioGroupSplitType = findViewById(R.id.radioGroupSplitType);
         radioEqual = findViewById(R.id.radioEqual);
@@ -111,7 +125,20 @@ public class AddExpenseActivity extends AppCompatActivity {
         layoutParticipants = findViewById(R.id.layoutParticipants);
         layoutCustomAmounts = findViewById(R.id.layoutCustomAmounts);
         tvSplitSummary = findViewById(R.id.tvSplitSummary);
-        
+
+        // Find title TextView in the header layout
+        View headerLayout = findViewById(R.id.headerLayout);
+        if (headerLayout != null && headerLayout instanceof LinearLayout) {
+            LinearLayout header = (LinearLayout) headerLayout;
+            for (int i = 0; i < header.getChildCount(); i++) {
+                View child = header.getChildAt(i);
+                if (child instanceof TextView && child.getId() != R.id.btnBack) {
+                    tvTitle = (TextView) child;
+                    break;
+                }
+            }
+        }
+
         // Initialize data structures
         members = new ArrayList<>();
         participantCheckBoxes = new ArrayList<>();
@@ -125,11 +152,11 @@ public class AddExpenseActivity extends AppCompatActivity {
 
     private void setupClickListeners() {
         btnBack.setOnClickListener(v -> finish());
-        
+
         btnSaveExpense.setOnClickListener(v -> saveExpense());
-        
+
         etDate.setOnClickListener(v -> showDatePicker());
-        
+
         // Setup radio button listeners
         radioGroupSplitType.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == R.id.radioEqual) {
@@ -140,15 +167,17 @@ public class AddExpenseActivity extends AppCompatActivity {
                 setupCustomAmountFields();
             }
         });
-        
+
         // Setup amount change listener
         etAmount.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
             @Override
             public void afterTextChanged(Editable s) {
                 updateSplitSummary();
@@ -160,117 +189,212 @@ public class AddExpenseActivity extends AppCompatActivity {
         Intent intent = getIntent();
         groupId = intent.getIntExtra("group_id", -1);
         groupName = intent.getStringExtra("group_name");
-        
+
         if (groupId == -1) {
             Toast.makeText(this, "Invalid group", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
-        
+
         // Load members for this group
         loadMembers();
     }
-    
+
+    private void loadExpenseData() {
+        currentExpense = databaseHelper.getExpenseById(expenseId);
+        if (currentExpense == null) {
+            Toast.makeText(this, "Expense not found", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
+        // Populate fields with expense data
+        etExpenseName.setText(currentExpense.getExpenseName());
+        etAmount.setText(String.valueOf(currentExpense.getAmount()));
+        etDescription.setText(currentExpense.getDescription() != null ? currentExpense.getDescription() : "");
+        etCategory.setText(currentExpense.getCategory() != null ? currentExpense.getCategory() : "");
+
+        // Set date
+        try {
+            SimpleDateFormat dbDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            SimpleDateFormat displayDateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+            Date date = dbDateFormat.parse(currentExpense.getDate());
+            if (date != null) {
+                selectedDate.setTime(date);
+                etDate.setText(displayDateFormat.format(date));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Set payer
+        String payer = currentExpense.getPayer();
+        for (int i = 0; i < payerAdapter.getCount(); i++) {
+            if (payerAdapter.getItem(i).equals(payer)) {
+                spinnerPayer.setSelection(i);
+                break;
+            }
+        }
+
+        // Set participants and split type
+        // Handle both ", " and "," formats
+        String[] participants = currentExpense.getParticipants().contains(", ")
+                ? currentExpense.getParticipants().split(", ")
+                : currentExpense.getParticipants().split(",");
+        boolean isCustomSplit = currentExpense.getParticipantAmounts() != null &&
+                !currentExpense.getParticipantAmounts().isEmpty();
+
+        if (isCustomSplit) {
+            radioCustom.setChecked(true);
+            layoutCustomAmounts.setVisibility(View.VISIBLE);
+        } else {
+            radioEqual.setChecked(true);
+            layoutCustomAmounts.setVisibility(View.GONE);
+        }
+
+        // Set participant checkboxes
+        for (CheckBox checkBox : participantCheckBoxes) {
+            String memberName = checkBox.getText().toString();
+            boolean isParticipant = false;
+            for (String participant : participants) {
+                if (participant.trim().equals(memberName)) {
+                    isParticipant = true;
+                    break;
+                }
+            }
+            checkBox.setChecked(isParticipant);
+        }
+
+        // Setup custom amounts if custom split
+        if (isCustomSplit) {
+            setupCustomAmountFields();
+            String[] participantAmounts = currentExpense.getParticipantAmounts().contains(", ")
+                    ? currentExpense.getParticipantAmounts().split(", ")
+                    : currentExpense.getParticipantAmounts().split(",");
+            for (int i = 0; i < participants.length && i < participantAmounts.length; i++) {
+                String participant = participants[i].trim();
+                String amount = participantAmounts[i].trim();
+                TextInputEditText field = customAmountFields.get(participant);
+                if (field != null) {
+                    field.setText(amount);
+                }
+            }
+        }
+
+        // Update button text and title
+        btnSaveExpense.setText("Update Expense");
+        if (tvTitle != null) {
+            tvTitle.setText("Edit Expense");
+        }
+
+        // Update split summary
+        updateSplitSummary();
+    }
+
     private void loadMembers() {
         members.clear();
         members.addAll(databaseHelper.getMembersForGroup(groupId));
-        
+
         if (members.isEmpty()) {
             Toast.makeText(this, "No members found. Please add members first.", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
-        
+
         setupPayerSpinner();
         setupParticipantCheckBoxes();
     }
-    
+
     private void setupPayerSpinner() {
         List<String> memberNames = new ArrayList<>();
         for (Member member : members) {
             memberNames.add(member.getMemberName());
         }
-        
+
         payerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, memberNames);
         payerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerPayer.setAdapter(payerAdapter);
     }
-    
+
     private void setupParticipantCheckBoxes() {
         layoutParticipants.removeAllViews();
         participantCheckBoxes.clear();
-        
+
         for (Member member : members) {
             CheckBox checkBox = new CheckBox(this);
             checkBox.setText(member.getMemberName());
             checkBox.setChecked(true); // Default to checked
             checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> updateSplitSummary());
-            
+
             layoutParticipants.addView(checkBox);
             participantCheckBoxes.add(checkBox);
         }
-        
+
         updateSplitSummary();
     }
-    
+
     private void setupCustomAmountFields() {
         layoutCustomAmounts.removeAllViews();
         customAmountFields.clear();
-        
+
         for (CheckBox checkBox : participantCheckBoxes) {
             if (checkBox.isChecked()) {
                 LinearLayout rowLayout = new LinearLayout(this);
                 rowLayout.setOrientation(LinearLayout.HORIZONTAL);
                 rowLayout.setPadding(0, 8, 0, 8);
-                
+
                 TextView label = new TextView(this);
                 label.setText(checkBox.getText() + ": $");
                 label.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                
+
                 TextInputEditText amountField = new TextInputEditText(this);
-                amountField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
-                amountField.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                amountField.setInputType(
+                        android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                amountField
+                        .setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
                 amountField.addTextChangedListener(new TextWatcher() {
                     @Override
-                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                    
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    }
+
                     @Override
-                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
-                    
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    }
+
                     @Override
                     public void afterTextChanged(Editable s) {
                         updateSplitSummary();
                     }
                 });
-                
+
                 rowLayout.addView(label);
                 rowLayout.addView(amountField);
                 layoutCustomAmounts.addView(rowLayout);
-                
+
                 customAmountFields.put(checkBox.getText().toString(), amountField);
             }
         }
     }
-    
+
     private void updateSplitSummary() {
         String amountText = etAmount.getText().toString().trim();
         if (amountText.isEmpty()) {
             tvSplitSummary.setVisibility(View.GONE);
             return;
         }
-        
+
         try {
             double totalAmount = Double.parseDouble(amountText);
             List<String> selectedParticipants = getSelectedParticipants();
-            
+
             if (selectedParticipants.isEmpty()) {
                 tvSplitSummary.setVisibility(View.GONE);
                 return;
             }
-            
+
             StringBuilder summary = new StringBuilder();
             summary.append("Split Summary:\n");
-            
+
             if (radioEqual.isChecked()) {
                 double amountPerPerson = totalAmount / selectedParticipants.size();
                 summary.append(String.format("$%.2f each\n", amountPerPerson));
@@ -288,11 +412,11 @@ public class AddExpenseActivity extends AppCompatActivity {
                         }
                     }
                 }
-                
+
                 if (Math.abs(customTotal - totalAmount) > 0.01) {
                     summary.append("⚠️ Custom amounts don't match total!\n");
                 }
-                
+
                 summary.append("Custom amounts:\n");
                 for (String participant : selectedParticipants) {
                     TextInputEditText field = customAmountFields.get(participant);
@@ -300,15 +424,15 @@ public class AddExpenseActivity extends AppCompatActivity {
                     summary.append(String.format("%s: $%s\n", participant, amount));
                 }
             }
-            
+
             tvSplitSummary.setText(summary.toString());
             tvSplitSummary.setVisibility(View.VISIBLE);
-            
+
         } catch (NumberFormatException e) {
             tvSplitSummary.setVisibility(View.GONE);
         }
     }
-    
+
     private List<String> getSelectedParticipants() {
         List<String> selected = new ArrayList<>();
         for (CheckBox checkBox : participantCheckBoxes) {
@@ -327,16 +451,15 @@ public class AddExpenseActivity extends AppCompatActivity {
 
     private void showDatePicker() {
         DatePickerDialog datePickerDialog = new DatePickerDialog(
-            this,
-            (view, year, month, dayOfMonth) -> {
-                selectedDate.set(year, month, dayOfMonth);
-                SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
-                etDate.setText(dateFormat.format(selectedDate.getTime()));
-            },
-            selectedDate.get(Calendar.YEAR),
-            selectedDate.get(Calendar.MONTH),
-            selectedDate.get(Calendar.DAY_OF_MONTH)
-        );
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    selectedDate.set(year, month, dayOfMonth);
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+                    etDate.setText(dateFormat.format(selectedDate.getTime()));
+                },
+                selectedDate.get(Calendar.YEAR),
+                selectedDate.get(Calendar.MONTH),
+                selectedDate.get(Calendar.DAY_OF_MONTH));
         datePickerDialog.show();
     }
 
@@ -401,7 +524,7 @@ public class AddExpenseActivity extends AppCompatActivity {
                     }
                 }
             }
-            
+
             if (Math.abs(customTotal - amount) > 0.01) {
                 Toast.makeText(this, "Custom amounts must equal the total amount", Toast.LENGTH_SHORT).show();
                 return;
@@ -410,7 +533,7 @@ public class AddExpenseActivity extends AppCompatActivity {
 
         // Create participants string
         String participants = String.join(", ", selectedParticipants);
-        
+
         // Create participant amounts string
         String participantAmounts = "";
         if (radioEqual.isChecked()) {
@@ -443,7 +566,7 @@ public class AddExpenseActivity extends AppCompatActivity {
         expense.setParticipantAmounts(participantAmounts);
         expense.setDescription(description.isEmpty() ? null : description);
         expense.setCategory(category.isEmpty() ? "General" : category);
-        
+
         // Format date for database
         SimpleDateFormat dbDateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         expense.setDate(dbDateFormat.format(selectedDate.getTime()));
@@ -476,19 +599,37 @@ public class AddExpenseActivity extends AppCompatActivity {
 
     private void saveExpenseToDatabase(Expense expense) {
         try {
-            // Save to database
-            long expenseId = databaseHelper.addExpense(expense);
-            if (expenseId != -1) {
-                Toast.makeText(this, "Expense added successfully", Toast.LENGTH_SHORT).show();
-                notificationHelper.showExpenseAddedNotification(groupName, expense.getExpenseName(), expense.getAmount());
-                
-                // Return to group details
-                Intent resultIntent = new Intent();
-                resultIntent.putExtra("expense_added", true);
-                setResult(RESULT_OK, resultIntent);
-                finish();
+            if (isEditMode && expenseId != -1) {
+                // Update existing expense
+                expense.setExpenseId(expenseId);
+                int result = databaseHelper.updateExpense(expense);
+                if (result > 0) {
+                    Toast.makeText(this, "Expense updated successfully", Toast.LENGTH_SHORT).show();
+
+                    // Return to group details
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("expense_updated", true);
+                    setResult(RESULT_OK, resultIntent);
+                    finish();
+                } else {
+                    Toast.makeText(this, "Failed to update expense", Toast.LENGTH_SHORT).show();
+                }
             } else {
-                Toast.makeText(this, "Failed to add expense", Toast.LENGTH_SHORT).show();
+                // Add new expense
+                long newExpenseId = databaseHelper.addExpense(expense);
+                if (newExpenseId != -1) {
+                    Toast.makeText(this, "Expense added successfully", Toast.LENGTH_SHORT).show();
+                    notificationHelper.showExpenseAddedNotification(groupName, expense.getExpenseName(),
+                            expense.getAmount());
+
+                    // Return to group details
+                    Intent resultIntent = new Intent();
+                    resultIntent.putExtra("expense_added", true);
+                    setResult(RESULT_OK, resultIntent);
+                    finish();
+                } else {
+                    Toast.makeText(this, "Failed to add expense", Toast.LENGTH_SHORT).show();
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();

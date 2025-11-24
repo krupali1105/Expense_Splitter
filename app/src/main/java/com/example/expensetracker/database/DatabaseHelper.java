@@ -19,7 +19,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "DatabaseHelper";
     private static final String DATABASE_NAME = "expense_tracker.db";
     private static final int DATABASE_VERSION = 4;
-    
+
     // Utility method to round values to 2 decimal places
     private double roundToTwoDecimals(double value) {
         return Math.round(value * 100.0) / 100.0;
@@ -198,7 +198,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public Group getGroup(int groupId) {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.query(TABLE_GROUPS, null, COLUMN_GROUP_ID + "=?",
-                new String[]{String.valueOf(groupId)}, null, null, null);
+                new String[] { String.valueOf(groupId) }, null, null, null);
 
         Group group = null;
         if (cursor.moveToFirst()) {
@@ -220,7 +220,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_GROUP_DESCRIPTION, group.getDescription());
 
         int result = db.update(TABLE_GROUPS, values, COLUMN_GROUP_ID + "=?",
-                new String[]{String.valueOf(group.getGroupId())});
+                new String[] { String.valueOf(group.getGroupId()) });
         db.close();
         return result > 0;
     }
@@ -228,9 +228,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public boolean deleteGroup(int groupId) {
         SQLiteDatabase db = this.getWritableDatabase();
         // Delete related expenses and members first
-        db.delete(TABLE_EXPENSES, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
-        db.delete(TABLE_MEMBERS, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
-        int result = db.delete(TABLE_GROUPS, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
+        db.delete(TABLE_EXPENSES, COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) });
+        db.delete(TABLE_MEMBERS, COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) });
+        int result = db.delete(TABLE_GROUPS, COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) });
         db.close();
         return result > 0;
     }
@@ -255,7 +255,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
             long id = db.insert(TABLE_EXPENSES, null, values);
             db.close();
-            
+
             // Update member balances after adding expense - with error handling
             try {
                 recalculateAllBalancesForGroup(expense.getGroupId());
@@ -272,9 +272,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public List<Expense> getExpensesForGroup(int groupId) {
         List<Expense> expenses = new ArrayList<>();
-        String selectQuery = "SELECT * FROM " + TABLE_EXPENSES + " WHERE " + COLUMN_GROUP_ID + "=? ORDER BY " + COLUMN_DATE + " DESC";
+        String selectQuery = "SELECT * FROM " + TABLE_EXPENSES + " WHERE " + COLUMN_GROUP_ID + "=? ORDER BY "
+                + COLUMN_DATE + " DESC";
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, new String[]{String.valueOf(groupId)});
+        Cursor cursor = db.rawQuery(selectQuery, new String[] { String.valueOf(groupId) });
 
         if (cursor.moveToFirst()) {
             do {
@@ -285,7 +286,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 expense.setAmount(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_AMOUNT)));
                 expense.setPayer(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PAYER)));
                 expense.setParticipants(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PARTICIPANTS)));
-                expense.setParticipantAmounts(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PARTICIPANT_AMOUNTS)));
+                expense.setParticipantAmounts(
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PARTICIPANT_AMOUNTS)));
                 expense.setDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DATE)));
                 expense.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DESCRIPTION)));
                 expense.setCategory(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY)));
@@ -296,8 +298,35 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             } while (cursor.moveToNext());
         }
         cursor.close();
-//        db.close();
+        // db.close();
         return expenses;
+    }
+
+    public Expense getExpenseById(int expenseId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_EXPENSES, null, COLUMN_EXPENSE_ID + "=?",
+                new String[] { String.valueOf(expenseId) }, null, null, null);
+
+        Expense expense = null;
+        if (cursor.moveToFirst()) {
+            expense = new Expense();
+            expense.setExpenseId(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_EXPENSE_ID)));
+            expense.setGroupId(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID)));
+            expense.setExpenseName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXPENSE_NAME)));
+            expense.setAmount(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_AMOUNT)));
+            expense.setPayer(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PAYER)));
+            expense.setParticipants(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PARTICIPANTS)));
+            expense.setParticipantAmounts(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PARTICIPANT_AMOUNTS)));
+            expense.setDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DATE)));
+            expense.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DESCRIPTION)));
+            expense.setCategory(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY)));
+            expense.setLocation(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LOCATION)));
+            expense.setLatitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LATITUDE)));
+            expense.setLongitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LONGITUDE)));
+        }
+        cursor.close();
+        db.close();
+        return expense;
     }
 
     public int updateExpense(Expense expense) {
@@ -316,9 +345,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_LONGITUDE, expense.getLongitude());
 
         int result = db.update(TABLE_EXPENSES, values, COLUMN_EXPENSE_ID + "=?",
-                new String[]{String.valueOf(expense.getExpenseId())});
+                new String[] { String.valueOf(expense.getExpenseId()) });
         db.close();
-        
+
         // Update member balances after updating expense
         updateMemberBalances(expense.getGroupId());
         return result;
@@ -327,17 +356,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public void deleteExpense(int expenseId) {
         SQLiteDatabase db = this.getWritableDatabase();
         // Get group ID before deleting
-        Cursor cursor = db.query(TABLE_EXPENSES, new String[]{COLUMN_GROUP_ID}, COLUMN_EXPENSE_ID + "=?",
-                new String[]{String.valueOf(expenseId)}, null, null, null);
+        Cursor cursor = db.query(TABLE_EXPENSES, new String[] { COLUMN_GROUP_ID }, COLUMN_EXPENSE_ID + "=?",
+                new String[] { String.valueOf(expenseId) }, null, null, null);
         int groupId = -1;
         if (cursor.moveToFirst()) {
             groupId = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
         }
         cursor.close();
 
-        db.delete(TABLE_EXPENSES, COLUMN_EXPENSE_ID + "=?", new String[]{String.valueOf(expenseId)});
+        db.delete(TABLE_EXPENSES, COLUMN_EXPENSE_ID + "=?", new String[] { String.valueOf(expenseId) });
         db.close();
-        
+
         // Update member balances after deleting expense
         if (groupId != -1) {
             updateMemberBalances(groupId);
@@ -372,14 +401,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_BALANCE, member.getBalance());
 
         int result = db.update(TABLE_MEMBERS, values, COLUMN_MEMBER_ID + "=?",
-                new String[]{String.valueOf(member.getMemberId())});
+                new String[] { String.valueOf(member.getMemberId()) });
         db.close();
         return result > 0;
     }
 
     public boolean deleteMember(int memberId) {
         SQLiteDatabase db = this.getWritableDatabase();
-        int result = db.delete(TABLE_MEMBERS, COLUMN_MEMBER_ID + "=?", new String[]{String.valueOf(memberId)});
+        int result = db.delete(TABLE_MEMBERS, COLUMN_MEMBER_ID + "=?", new String[] { String.valueOf(memberId) });
         db.close();
         return result > 0;
     }
@@ -388,7 +417,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         List<Member> members = new ArrayList<>();
         String selectQuery = "SELECT * FROM " + TABLE_MEMBERS + " WHERE " + COLUMN_GROUP_ID + "=?";
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, new String[]{String.valueOf(groupId)});
+        Cursor cursor = db.rawQuery(selectQuery, new String[] { String.valueOf(groupId) });
 
         if (cursor.moveToFirst()) {
             do {
@@ -411,9 +440,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     // Helper methods
     private double getTotalExpensesForGroup(int groupId) {
-        String selectQuery = "SELECT SUM(" + COLUMN_AMOUNT + ") FROM " + TABLE_EXPENSES + " WHERE " + COLUMN_GROUP_ID + "=?";
+        String selectQuery = "SELECT SUM(" + COLUMN_AMOUNT + ") FROM " + TABLE_EXPENSES + " WHERE " + COLUMN_GROUP_ID
+                + "=?";
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, new String[]{String.valueOf(groupId)});
+        Cursor cursor = db.rawQuery(selectQuery, new String[] { String.valueOf(groupId) });
         double total = 0;
         if (cursor.moveToFirst()) {
             total = cursor.getDouble(0);
@@ -426,7 +456,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private int getMemberCountForGroup(int groupId) {
         String selectQuery = "SELECT COUNT(*) FROM " + TABLE_MEMBERS + " WHERE " + COLUMN_GROUP_ID + "=?";
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, new String[]{String.valueOf(groupId)});
+        Cursor cursor = db.rawQuery(selectQuery, new String[] { String.valueOf(groupId) });
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -440,52 +470,53 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         try {
             Log.d(TAG, "Starting balance calculation for group: " + groupId);
             SQLiteDatabase db = this.getWritableDatabase();
-            
+
             // Reset all balances to 0
             ContentValues resetValues = new ContentValues();
             resetValues.put(COLUMN_TOTAL_OWED, 0);
             resetValues.put(COLUMN_TOTAL_OWING, 0);
             resetValues.put(COLUMN_BALANCE, 0);
-            int resetCount = db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
+            int resetCount = db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?",
+                    new String[] { String.valueOf(groupId) });
             Log.d(TAG, "Reset " + resetCount + " members to 0 balance");
-            
+
             // Get all expenses for this group
             List<Expense> expenses = getExpensesForGroup(groupId);
             Log.d(TAG, "Found " + (expenses != null ? expenses.size() : 0) + " expenses");
-            
+
             if (expenses == null || expenses.isEmpty()) {
                 db.close();
                 return;
             }
-            
+
             // Calculate balances based on expenses
             for (Expense expense : expenses) {
                 if (expense == null || expense.getParticipants() == null || expense.getParticipants().isEmpty()) {
                     continue;
                 }
-                
+
                 Log.d(TAG, "Processing expense: " + expense.getExpenseName() + " Amount: " + expense.getAmount());
                 Log.d(TAG, "Participants: " + expense.getParticipants());
                 Log.d(TAG, "Payer: " + expense.getPayer());
-                
+
                 String[] participants = expense.getParticipants().split(", ");
                 String[] participantAmounts = null;
-                
+
                 // Check if custom amounts are available
                 if (expense.getParticipantAmounts() != null && !expense.getParticipantAmounts().isEmpty()) {
                     participantAmounts = expense.getParticipantAmounts().split(", ");
                     Log.d(TAG, "Custom amounts: " + expense.getParticipantAmounts());
                 }
-                
+
                 // Calculate amounts for each participant
                 for (int i = 0; i < participants.length; i++) {
                     String participant = participants[i].trim();
                     if (participant.isEmpty()) {
                         continue;
                     }
-                    
+
                     double amount;
-                    
+
                     if (participantAmounts != null && i < participantAmounts.length) {
                         // Use custom amount
                         try {
@@ -498,84 +529,90 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         // Equal split
                         amount = expense.getAmount() / participants.length;
                     }
-                    
+
                     Log.d(TAG, "Participant: " + participant + " Amount: " + amount);
-                    
+
                     if (participant.equals(expense.getPayer())) {
                         // Payer gets money back (total amount - their share)
                         double payerGetsBack = expense.getAmount() - amount;
                         Log.d(TAG, "Payer " + participant + " gets back: " + payerGetsBack);
-                        
+
                         // Get current total_owing and add to it
-                        Cursor cursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWING}, 
-                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                                new String[]{String.valueOf(groupId), participant}, null, null, null);
+                        Cursor cursor = db.query(TABLE_MEMBERS, new String[] { COLUMN_TOTAL_OWING },
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant }, null, null, null);
                         double currentOwing = 0;
                         if (cursor.moveToFirst()) {
                             currentOwing = cursor.getDouble(0);
                         }
                         cursor.close();
-                        
+
                         ContentValues payerValues = new ContentValues();
                         double newTotalOwing = roundToTwoDecimals(currentOwing + payerGetsBack);
                         payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
-                        int updateCount = db.update(TABLE_MEMBERS, payerValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
-                                new String[]{String.valueOf(groupId), participant});
-                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing + " (rows affected: " + updateCount + ")");
+                        int updateCount = db.update(TABLE_MEMBERS, payerValues,
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant });
+                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing
+                                + " (rows affected: " + updateCount + ")");
                     } else {
                         // Other participants owe money
                         Log.d(TAG, "Participant " + participant + " owes: " + amount);
-                        
+
                         // Get current total_owed and add to it
-                        Cursor cursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED}, 
-                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                                new String[]{String.valueOf(groupId), participant}, null, null, null);
+                        Cursor cursor = db.query(TABLE_MEMBERS, new String[] { COLUMN_TOTAL_OWED },
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant }, null, null, null);
                         double currentOwed = 0;
                         if (cursor.moveToFirst()) {
                             currentOwed = cursor.getDouble(0);
                         }
                         cursor.close();
-                        
+
                         ContentValues participantValues = new ContentValues();
                         double newTotalOwed = roundToTwoDecimals(currentOwed + amount);
                         participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
-                        int updateCount = db.update(TABLE_MEMBERS, participantValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
-                                new String[]{String.valueOf(groupId), participant});
-                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed + " (rows affected: " + updateCount + ")");
+                        int updateCount = db.update(TABLE_MEMBERS, participantValues,
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant });
+                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed
+                                + " (rows affected: " + updateCount + ")");
                     }
                 }
             }
-            
+
             // Calculate final balances with proper rounding
-            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
-                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
-            
+            Cursor balanceCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
+
             while (balanceCursor.moveToNext()) {
                 int memberId = balanceCursor.getInt(0);
                 double totalOwed = balanceCursor.getDouble(1);
                 double totalOwing = balanceCursor.getDouble(2);
                 double balance = roundToTwoDecimals(totalOwed - totalOwing);
-                
+
                 ContentValues balanceValues = new ContentValues();
                 balanceValues.put(COLUMN_BALANCE, balance);
-                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
-                        new String[]{String.valueOf(memberId)});
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?",
+                        new String[] { String.valueOf(memberId) });
             }
             balanceCursor.close();
-            
+
             // Log final balances
-            Cursor finalCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            Cursor finalCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
             while (finalCursor.moveToNext()) {
                 String memberName = finalCursor.getString(0);
                 double totalOwed = finalCursor.getDouble(1);
                 double totalOwing = finalCursor.getDouble(2);
                 double balance = finalCursor.getDouble(3);
-                Log.d(TAG, "Final balance for " + memberName + ": owed=" + totalOwed + ", owing=" + totalOwing + ", balance=" + balance);
+                Log.d(TAG, "Final balance for " + memberName + ": owed=" + totalOwed + ", owing=" + totalOwing
+                        + ", balance=" + balance);
             }
             finalCursor.close();
-            
+
             db.close();
             Log.d(TAG, "Balance calculation completed for group: " + groupId);
         } catch (Exception e) {
@@ -583,7 +620,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             e.printStackTrace();
         }
     }
-
 
     // FIXED: Simple and correct balance calculation method
     public void clearAllData() {
@@ -606,10 +642,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         try {
             Log.d(TAG, "=== STARTING BALANCE RECALCULATION FOR GROUP " + groupId + " ===");
             SQLiteDatabase db = this.getWritableDatabase();
-            
+
             // First, let's check if we have any members in this group
-            Cursor memberCheck = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            Cursor memberCheck = db.query(TABLE_MEMBERS, new String[] { COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
             Log.d(TAG, "Found " + memberCheck.getCount() + " members in group " + groupId);
             memberCheck.close();
 
@@ -618,7 +654,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             resetValues.put(COLUMN_TOTAL_OWED, 0);
             resetValues.put(COLUMN_TOTAL_OWING, 0);
             resetValues.put(COLUMN_BALANCE, 0);
-            int resetCount = db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
+            int resetCount = db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?",
+                    new String[] { String.valueOf(groupId) });
             Log.d(TAG, "Reset " + resetCount + " members to 0 balance");
 
             // 2. Get all expenses for this group
@@ -672,22 +709,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     Log.d(TAG, "Participant: " + participant + " Share: " + share);
 
                     // Find member by name (case-insensitive and trim whitespace)
-                    Cursor memberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
-                            COLUMN_GROUP_ID + "=? AND LOWER(TRIM(" + COLUMN_MEMBER_NAME + ")) = LOWER(TRIM(?))", 
-                            new String[]{String.valueOf(groupId), participant}, null, null, null);
-                    
+                    Cursor memberCursor = db.query(TABLE_MEMBERS,
+                            new String[] { COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED,
+                                    COLUMN_TOTAL_OWING },
+                            COLUMN_GROUP_ID + "=? AND LOWER(TRIM(" + COLUMN_MEMBER_NAME + ")) = LOWER(TRIM(?))",
+                            new String[] { String.valueOf(groupId), participant }, null, null, null);
+
                     if (!memberCursor.moveToFirst()) {
                         Log.e(TAG, "Member not found: " + participant);
                         memberCursor.close();
                         continue;
                     }
-                    
+
                     int memberId = memberCursor.getInt(0);
                     String memberName = memberCursor.getString(1);
                     double currentOwed = memberCursor.getDouble(2);
                     double currentOwing = memberCursor.getDouble(3);
                     memberCursor.close();
-                    
+
                     Log.d(TAG, "Found member: " + memberName + " (ID: " + memberId + ")");
 
                     if (participant.equals(expense.getPayer())) {
@@ -699,10 +738,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         ContentValues payerValues = new ContentValues();
                         double newTotalOwing = roundToTwoDecimals(currentOwing + payerGetsBack);
                         payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
-                        int updateCount = db.update(TABLE_MEMBERS, payerValues, 
-                                COLUMN_MEMBER_ID + "=?", 
-                                new String[]{String.valueOf(memberId)});
-                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing + " (rows: " + updateCount + ")");
+                        int updateCount = db.update(TABLE_MEMBERS, payerValues,
+                                COLUMN_MEMBER_ID + "=?",
+                                new String[] { String.valueOf(memberId) });
+                        Log.d(TAG, "Updated payer " + participant + " total_owing to: " + newTotalOwing + " (rows: "
+                                + updateCount + ")");
                     } else {
                         // Other participants owe their share
                         Log.d(TAG, "Participant " + participant + " owes: " + share);
@@ -711,42 +751,44 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         ContentValues participantValues = new ContentValues();
                         double newTotalOwed = roundToTwoDecimals(currentOwed + share);
                         participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
-                        int updateCount = db.update(TABLE_MEMBERS, participantValues, 
-                                COLUMN_MEMBER_ID + "=?", 
-                                new String[]{String.valueOf(memberId)});
-                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed + " (rows: " + updateCount + ")");
+                        int updateCount = db.update(TABLE_MEMBERS, participantValues,
+                                COLUMN_MEMBER_ID + "=?",
+                                new String[] { String.valueOf(memberId) });
+                        Log.d(TAG, "Updated participant " + participant + " total_owed to: " + newTotalOwed + " (rows: "
+                                + updateCount + ")");
                     }
                 }
             }
 
             // 4. Calculate final balances (total_owed - total_owing) with proper rounding
-            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
-                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
-            
+            Cursor balanceCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
+
             while (balanceCursor.moveToNext()) {
                 int memberId = balanceCursor.getInt(0);
                 double totalOwed = balanceCursor.getDouble(1);
                 double totalOwing = balanceCursor.getDouble(2);
                 double balance = roundToTwoDecimals(totalOwed - totalOwing);
-                
+
                 ContentValues balanceValues = new ContentValues();
                 balanceValues.put(COLUMN_BALANCE, balance);
-                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
-                        new String[]{String.valueOf(memberId)});
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?",
+                        new String[] { String.valueOf(memberId) });
             }
             balanceCursor.close();
 
             // 5. Log final results
-            Cursor finalCursor = db.query(TABLE_MEMBERS, 
-                    new String[]{COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            Cursor finalCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
             while (finalCursor.moveToNext()) {
                 String memberName = finalCursor.getString(0);
                 double totalOwed = finalCursor.getDouble(1);
                 double totalOwing = finalCursor.getDouble(2);
                 double balance = finalCursor.getDouble(3);
-                Log.d(TAG, "FINAL: " + memberName + " -> owed=" + totalOwed + ", owing=" + totalOwing + ", balance=" + balance);
+                Log.d(TAG, "FINAL: " + memberName + " -> owed=" + totalOwed + ", owing=" + totalOwing + ", balance="
+                        + balance);
             }
             finalCursor.close();
 
@@ -758,50 +800,49 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
-
     // New simplified balance calculation method
     public void recalculateBalances(int groupId) {
         try {
             SQLiteDatabase db = this.getWritableDatabase();
-            
+
             // Reset all balances to 0
             ContentValues resetValues = new ContentValues();
             resetValues.put(COLUMN_TOTAL_OWED, 0);
             resetValues.put(COLUMN_TOTAL_OWING, 0);
             resetValues.put(COLUMN_BALANCE, 0);
-            db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
-            
+            db.update(TABLE_MEMBERS, resetValues, COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) });
+
             // Get all expenses for this group
             List<Expense> expenses = getExpensesForGroup(groupId);
-            
+
             if (expenses == null || expenses.isEmpty()) {
                 db.close();
                 return;
             }
-            
+
             // Calculate balances based on expenses
             for (Expense expense : expenses) {
                 if (expense == null || expense.getParticipants() == null || expense.getParticipants().isEmpty()) {
                     continue;
                 }
-                
+
                 String[] participants = expense.getParticipants().split(", ");
                 String[] participantAmounts = null;
-                
+
                 // Check if custom amounts are available
                 if (expense.getParticipantAmounts() != null && !expense.getParticipantAmounts().isEmpty()) {
                     participantAmounts = expense.getParticipantAmounts().split(", ");
                 }
-                
+
                 // Calculate amounts for each participant
                 for (int i = 0; i < participants.length; i++) {
                     String participant = participants[i].trim();
                     if (participant.isEmpty()) {
                         continue;
                     }
-                    
+
                     double amount;
-                    
+
                     if (participantAmounts != null && i < participantAmounts.length) {
                         // Use custom amount
                         try {
@@ -814,78 +855,81 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         // Equal split
                         amount = expense.getAmount() / participants.length;
                     }
-                    
+
                     if (participant.equals(expense.getPayer())) {
                         // Payer gets money back (total amount - their share)
                         // Get current total_owing and add to it
-                        Cursor cursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWING}, 
-                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                                new String[]{String.valueOf(groupId), participant}, null, null, null);
+                        Cursor cursor = db.query(TABLE_MEMBERS, new String[] { COLUMN_TOTAL_OWING },
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant }, null, null, null);
                         double currentOwing = 0;
                         if (cursor.moveToFirst()) {
                             currentOwing = cursor.getDouble(0);
                         }
                         cursor.close();
-                        
+
                         ContentValues payerValues = new ContentValues();
                         double newTotalOwing = roundToTwoDecimals(currentOwing + (expense.getAmount() - amount));
                         payerValues.put(COLUMN_TOTAL_OWING, newTotalOwing);
                         db.update(TABLE_MEMBERS, payerValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
-                                new String[]{String.valueOf(groupId), participant});
+                                new String[] { String.valueOf(groupId), participant });
                     } else {
                         // Other participants owe money
                         // Get current total_owed and add to it
-                        Cursor cursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED}, 
-                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                                new String[]{String.valueOf(groupId), participant}, null, null, null);
+                        Cursor cursor = db.query(TABLE_MEMBERS, new String[] { COLUMN_TOTAL_OWED },
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant }, null, null, null);
                         double currentOwed = 0;
                         if (cursor.moveToFirst()) {
                             currentOwed = cursor.getDouble(0);
                         }
                         cursor.close();
-                        
+
                         ContentValues participantValues = new ContentValues();
                         double newTotalOwed = roundToTwoDecimals(currentOwed + amount);
                         participantValues.put(COLUMN_TOTAL_OWED, newTotalOwed);
-                        db.update(TABLE_MEMBERS, participantValues, COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
-                                new String[]{String.valueOf(groupId), participant});
+                        db.update(TABLE_MEMBERS, participantValues,
+                                COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                                new String[] { String.valueOf(groupId), participant });
                     }
                 }
             }
-            
+
             // Calculate final balances with proper rounding
-            Cursor balanceCursor = db.query(TABLE_MEMBERS, 
-                    new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
-            
+            Cursor balanceCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
+
             while (balanceCursor.moveToNext()) {
                 int memberId = balanceCursor.getInt(0);
                 double totalOwed = balanceCursor.getDouble(1);
                 double totalOwing = balanceCursor.getDouble(2);
                 double balance = roundToTwoDecimals(totalOwed - totalOwing);
-                
+
                 ContentValues balanceValues = new ContentValues();
                 balanceValues.put(COLUMN_BALANCE, balance);
-                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?", 
-                        new String[]{String.valueOf(memberId)});
+                db.update(TABLE_MEMBERS, balanceValues, COLUMN_MEMBER_ID + "=?",
+                        new String[] { String.valueOf(memberId) });
             }
             balanceCursor.close();
-            
+
             db.close();
         } catch (Exception e) {
             e.printStackTrace();
             // If there's an error, just return without crashing
         }
     }
-    
+
     // Test method to debug balance calculation
     public void debugBalanceCalculation(int groupId) {
         try {
             SQLiteDatabase db = this.getWritableDatabase();
-            
+
             // Check members
-            Cursor memberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            Cursor memberCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_MEMBER_NAME, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING,
+                            COLUMN_BALANCE },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
             Log.d(TAG, "=== DEBUG: MEMBERS IN GROUP " + groupId + " ===");
             while (memberCursor.moveToNext()) {
                 int id = memberCursor.getInt(0);
@@ -893,13 +937,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 double owed = memberCursor.getDouble(2);
                 double owing = memberCursor.getDouble(3);
                 double balance = memberCursor.getDouble(4);
-                Log.d(TAG, "Member: " + name + " (ID:" + id + ") owed=" + owed + ", owing=" + owing + ", balance=" + balance);
+                Log.d(TAG, "Member: " + name + " (ID:" + id + ") owed=" + owed + ", owing=" + owing + ", balance="
+                        + balance);
             }
             memberCursor.close();
-            
+
             // Check expenses
-            Cursor expenseCursor = db.query(TABLE_EXPENSES, new String[]{COLUMN_EXPENSE_NAME, COLUMN_AMOUNT, COLUMN_PAYER, COLUMN_PARTICIPANTS, COLUMN_PARTICIPANT_AMOUNTS}, 
-                    COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)}, null, null, null);
+            Cursor expenseCursor = db.query(TABLE_EXPENSES,
+                    new String[] { COLUMN_EXPENSE_NAME, COLUMN_AMOUNT, COLUMN_PAYER, COLUMN_PARTICIPANTS,
+                            COLUMN_PARTICIPANT_AMOUNTS },
+                    COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) }, null, null, null);
             Log.d(TAG, "=== DEBUG: EXPENSES IN GROUP " + groupId + " ===");
             while (expenseCursor.moveToNext()) {
                 String name = expenseCursor.getString(0);
@@ -907,22 +954,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 String payer = expenseCursor.getString(2);
                 String participants = expenseCursor.getString(3);
                 String amounts = expenseCursor.getString(4);
-                Log.d(TAG, "Expense: " + name + " Amount:" + amount + " Payer:" + payer + " Participants:" + participants + " Amounts:" + amounts);
+                Log.d(TAG, "Expense: " + name + " Amount:" + amount + " Payer:" + payer + " Participants:"
+                        + participants + " Amounts:" + amounts);
             }
             expenseCursor.close();
-            
+
             db.close();
         } catch (Exception e) {
             Log.e(TAG, "Debug error: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     // Settlement CRUD operations
     public long addSettlement(Settlement settlement, int groupId) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
-        
+
         values.put(COLUMN_GROUP_ID, groupId);
         values.put(COLUMN_FROM_MEMBER, settlement.getFromMember());
         values.put(COLUMN_TO_MEMBER, settlement.getToMember());
@@ -931,19 +979,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_SETTLEMENT_AMOUNT, settlement.getAmount());
         values.put(COLUMN_IS_SETTLED, settlement.isSettled() ? 1 : 0);
         values.put(COLUMN_SETTLEMENT_DATE, settlement.getSettlementDate());
-        
+
         long result = db.insert(TABLE_SETTLEMENTS, null, values);
         db.close();
         return result;
     }
-    
+
     public List<Settlement> getSettlementsForGroup(int groupId) {
         List<Settlement> settlements = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
-        
-        Cursor cursor = db.query(TABLE_SETTLEMENTS, null, COLUMN_GROUP_ID + "=?", 
-                new String[]{String.valueOf(groupId)}, null, null, COLUMN_SETTLEMENT_ID + " ASC");
-        
+
+        Cursor cursor = db.query(TABLE_SETTLEMENTS, null, COLUMN_GROUP_ID + "=?",
+                new String[] { String.valueOf(groupId) }, null, null, COLUMN_SETTLEMENT_ID + " ASC");
+
         if (cursor.moveToFirst()) {
             do {
                 Settlement settlement = new Settlement();
@@ -954,57 +1002,63 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 settlement.setAmount(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_SETTLEMENT_AMOUNT)));
                 settlement.setSettled(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SETTLED)) == 1);
                 settlement.setSettlementDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SETTLEMENT_DATE)));
-                
+
                 settlements.add(settlement);
             } while (cursor.moveToNext());
         }
-        
+
         cursor.close();
         db.close();
         return settlements;
     }
-    
-    public boolean updateSettlementStatus(int groupId, String fromMember, String toMember, double amount, boolean isSettled) {
+
+    public boolean updateSettlementStatus(int groupId, String fromMember, String toMember, double amount,
+            boolean isSettled) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COLUMN_IS_SETTLED, isSettled ? 1 : 0);
         if (isSettled) {
-            values.put(COLUMN_SETTLEMENT_DATE, new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(new java.util.Date()));
+            values.put(COLUMN_SETTLEMENT_DATE,
+                    new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                            .format(new java.util.Date()));
         }
-        
+
         // Use a range for amount comparison to handle floating point precision
-        String whereClause = COLUMN_GROUP_ID + "=? AND " + COLUMN_FROM_MEMBER + "=? AND " + 
-                           COLUMN_TO_MEMBER + "=? AND " + COLUMN_SETTLEMENT_AMOUNT + " BETWEEN ? AND ?";
-        String[] whereArgs = {String.valueOf(groupId), fromMember, toMember, 
-                            String.valueOf(amount - 0.01), String.valueOf(amount + 0.01)};
-        
-        Log.d(TAG, "Updating settlement: " + fromMember + " -> " + toMember + " $" + amount + " (settled=" + isSettled + ")");
+        String whereClause = COLUMN_GROUP_ID + "=? AND " + COLUMN_FROM_MEMBER + "=? AND " +
+                COLUMN_TO_MEMBER + "=? AND " + COLUMN_SETTLEMENT_AMOUNT + " BETWEEN ? AND ?";
+        String[] whereArgs = { String.valueOf(groupId), fromMember, toMember,
+                String.valueOf(amount - 0.01), String.valueOf(amount + 0.01) };
+
+        Log.d(TAG, "Updating settlement: " + fromMember + " -> " + toMember + " $" + amount + " (settled=" + isSettled
+                + ")");
         Log.d(TAG, "Where clause: " + whereClause);
         Log.d(TAG, "Where args: " + java.util.Arrays.toString(whereArgs));
-        
+
         int result = db.update(TABLE_SETTLEMENTS, values, whereClause, whereArgs);
         Log.d(TAG, "Update result: " + result + " rows affected");
-        
+
         // If settlement is marked as complete, update member balances
         if (isSettled && result > 0) {
             updateBalancesAfterSettlement(db, groupId, fromMember, toMember, amount);
         }
-        
+
         db.close();
-        
+
         return result > 0;
     }
-    
-    private void updateBalancesAfterSettlement(SQLiteDatabase db, int groupId, String fromMember, String toMember, double amount) {
+
+    private void updateBalancesAfterSettlement(SQLiteDatabase db, int groupId, String fromMember, String toMember,
+            double amount) {
         try {
             Log.d(TAG, "=== UPDATING BALANCES AFTER SETTLEMENT ===");
             Log.d(TAG, "Settlement: " + fromMember + " pays " + toMember + " $" + amount);
-            
+
             // Get current balances for both members
-            Cursor fromMemberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                    new String[]{String.valueOf(groupId), fromMember}, null, null, null);
-            
+            Cursor fromMemberCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                    new String[] { String.valueOf(groupId), fromMember }, null, null, null);
+
             int fromMemberId = -1;
             double fromMemberOwed = 0, fromMemberOwing = 0, fromMemberBalance = 0;
             if (fromMemberCursor.moveToFirst()) {
@@ -1014,11 +1068,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 fromMemberBalance = fromMemberCursor.getDouble(3);
             }
             fromMemberCursor.close();
-            
-            Cursor toMemberCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?", 
-                    new String[]{String.valueOf(groupId), toMember}, null, null, null);
-            
+
+            Cursor toMemberCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_MEMBER_ID, COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_GROUP_ID + "=? AND " + COLUMN_MEMBER_NAME + "=?",
+                    new String[] { String.valueOf(groupId), toMember }, null, null, null);
+
             int toMemberId = -1;
             double toMemberOwed = 0, toMemberOwing = 0, toMemberBalance = 0;
             if (toMemberCursor.moveToFirst()) {
@@ -1028,11 +1083,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 toMemberBalance = toMemberCursor.getDouble(3);
             }
             toMemberCursor.close();
-            
+
             Log.d(TAG, "Before settlement:");
-            Log.d(TAG, "  " + fromMember + " (ID:" + fromMemberId + "): owed=" + fromMemberOwed + ", owing=" + fromMemberOwing + ", balance=" + fromMemberBalance);
-            Log.d(TAG, "  " + toMember + " (ID:" + toMemberId + "): owed=" + toMemberOwed + ", owing=" + toMemberOwing + ", balance=" + toMemberBalance);
-            
+            Log.d(TAG, "  " + fromMember + " (ID:" + fromMemberId + "): owed=" + fromMemberOwed + ", owing="
+                    + fromMemberOwing + ", balance=" + fromMemberBalance);
+            Log.d(TAG, "  " + toMember + " (ID:" + toMemberId + "): owed=" + toMemberOwed + ", owing=" + toMemberOwing
+                    + ", balance=" + toMemberBalance);
+
             // Update balances after settlement
             // fromMember reduces their debt (total_owed decreases by settlement amount)
             double newFromMemberOwed = roundToTwoDecimals(Math.max(0, fromMemberOwed - amount));
@@ -1040,65 +1097,71 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             fromValues.put(COLUMN_TOTAL_OWED, newFromMemberOwed);
             double newFromBalance = roundToTwoDecimals(newFromMemberOwed - fromMemberOwing);
             fromValues.put(COLUMN_BALANCE, newFromBalance);
-            
-            int fromUpdateResult = db.update(TABLE_MEMBERS, fromValues, COLUMN_MEMBER_ID + "=?", 
-                    new String[]{String.valueOf(fromMemberId)});
-            Log.d(TAG, "Updated " + fromMember + " total_owed: " + fromMemberOwed + " -> " + newFromMemberOwed + " (rows affected: " + fromUpdateResult + ")");
-            
+
+            int fromUpdateResult = db.update(TABLE_MEMBERS, fromValues, COLUMN_MEMBER_ID + "=?",
+                    new String[] { String.valueOf(fromMemberId) });
+            Log.d(TAG, "Updated " + fromMember + " total_owed: " + fromMemberOwed + " -> " + newFromMemberOwed
+                    + " (rows affected: " + fromUpdateResult + ")");
+
             // toMember reduces their credit (total_owing decreases by settlement amount)
             double newToMemberOwing = roundToTwoDecimals(Math.max(0, toMemberOwing - amount));
             ContentValues toValues = new ContentValues();
             toValues.put(COLUMN_TOTAL_OWING, newToMemberOwing);
             double newToBalance = roundToTwoDecimals(toMemberOwed - newToMemberOwing);
             toValues.put(COLUMN_BALANCE, newToBalance);
-            
-            int toUpdateResult = db.update(TABLE_MEMBERS, toValues, COLUMN_MEMBER_ID + "=?", 
-                    new String[]{String.valueOf(toMemberId)});
-            Log.d(TAG, "Updated " + toMember + " total_owing: " + toMemberOwing + " -> " + newToMemberOwing + " (rows affected: " + toUpdateResult + ")");
-            
+
+            int toUpdateResult = db.update(TABLE_MEMBERS, toValues, COLUMN_MEMBER_ID + "=?",
+                    new String[] { String.valueOf(toMemberId) });
+            Log.d(TAG, "Updated " + toMember + " total_owing: " + toMemberOwing + " -> " + newToMemberOwing
+                    + " (rows affected: " + toUpdateResult + ")");
+
             // Verify the updates by reading back the values
-            Cursor verifyFromCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_MEMBER_ID + "=?", new String[]{String.valueOf(fromMemberId)}, null, null, null);
+            Cursor verifyFromCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_MEMBER_ID + "=?", new String[] { String.valueOf(fromMemberId) }, null, null, null);
             if (verifyFromCursor.moveToFirst()) {
                 double finalFromOwed = verifyFromCursor.getDouble(0);
                 double finalFromOwing = verifyFromCursor.getDouble(1);
                 double finalFromBalance = verifyFromCursor.getDouble(2);
-                Log.d(TAG, "Final " + fromMember + ": owed=" + finalFromOwed + ", owing=" + finalFromOwing + ", balance=" + finalFromBalance);
+                Log.d(TAG, "Final " + fromMember + ": owed=" + finalFromOwed + ", owing=" + finalFromOwing
+                        + ", balance=" + finalFromBalance);
             }
             verifyFromCursor.close();
-            
-            Cursor verifyToCursor = db.query(TABLE_MEMBERS, new String[]{COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE}, 
-                    COLUMN_MEMBER_ID + "=?", new String[]{String.valueOf(toMemberId)}, null, null, null);
+
+            Cursor verifyToCursor = db.query(TABLE_MEMBERS,
+                    new String[] { COLUMN_TOTAL_OWED, COLUMN_TOTAL_OWING, COLUMN_BALANCE },
+                    COLUMN_MEMBER_ID + "=?", new String[] { String.valueOf(toMemberId) }, null, null, null);
             if (verifyToCursor.moveToFirst()) {
                 double finalToOwed = verifyToCursor.getDouble(0);
                 double finalToOwing = verifyToCursor.getDouble(1);
                 double finalToBalance = verifyToCursor.getDouble(2);
-                Log.d(TAG, "Final " + toMember + ": owed=" + finalToOwed + ", owing=" + finalToOwing + ", balance=" + finalToBalance);
+                Log.d(TAG, "Final " + toMember + ": owed=" + finalToOwed + ", owing=" + finalToOwing + ", balance="
+                        + finalToBalance);
             }
             verifyToCursor.close();
-            
+
             Log.d(TAG, "=== BALANCE UPDATE COMPLETED ===");
-            
+
         } catch (Exception e) {
             Log.e(TAG, "Error updating balances after settlement: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     public void clearSettlementsForGroup(int groupId) {
         SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_SETTLEMENTS, COLUMN_GROUP_ID + "=?", new String[]{String.valueOf(groupId)});
+        db.delete(TABLE_SETTLEMENTS, COLUMN_GROUP_ID + "=?", new String[] { String.valueOf(groupId) });
         db.close();
     }
-    
+
     public void clearUnsettledSettlementsForGroup(int groupId) {
         SQLiteDatabase db = this.getWritableDatabase();
         String whereClause = COLUMN_GROUP_ID + "=? AND " + COLUMN_IS_SETTLED + "=?";
-        String[] whereArgs = {String.valueOf(groupId), "0"}; // 0 means not settled (false)
-        
+        String[] whereArgs = { String.valueOf(groupId), "0" }; // 0 means not settled (false)
+
         int deletedRows = db.delete(TABLE_SETTLEMENTS, whereClause, whereArgs);
         Log.d(TAG, "Cleared " + deletedRows + " unsettled settlements for group " + groupId);
-        
+
         db.close();
     }
 }
